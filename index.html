@@ -3,109 +3,108 @@
 <head>
 <meta charset="UTF-8">
 <title>BAI 25-2 MAP</title>
-
-<!-- 모바일 확대 방지 -->
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=0" />
-
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <style>
   html, body { height: 100%; margin:0; padding:0; font-family: Arial; }
   #map { height: 100%; width: 100%; }
 
-  /* 슬라이드 패널 */
+  /* === 패널 슬라이드 === */
   .panel {
     position: absolute;
-    top: 10px;
-    left: 0;
-    height: 30%;
-    width: 260px;
-    background: rgba(255,255,255,0.95);
-    border-radius: 5px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    top: 60px; /* 버튼 밑으로 */
+    left: 10px;
     z-index: 1000;
+    width: 30%; /* 화면 30% */
+    max-width: 300px;
+    background: rgba(255,255,255,0.95);
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
     overflow: hidden;
-    transition: height 0.3s;
+    transition: transform 0.3s ease, height 0.3s ease;
+  }
+
+  .panel.hidden {
+    transform: translateX(-105%);
   }
 
   .panel-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 8px;
+    border-bottom: 1px solid #ccc;
+  }
+
+  .panel-header button {
+    flex: 1;
+    padding: 6px 0;
+    font-size: 14px;
+    border: none;
+    background: #f5f5f5;
     cursor: pointer;
-    font-weight: bold;
-    background: #eee;
   }
 
-  .panel-body {
-    padding: 5px;
-    overflow-y: auto;
-    height: calc(100% - 32px);
+  .panel-header button.active {
+    background: #ddd;
   }
 
-  .panel-body input, .panel-body button { padding:5px; font-size:14px; margin:2px 0; width: 100%; }
-  .panel-body hr { margin:5px 0; }
-
-  /* 좌측 상단 석삼자 버튼 */
-  .hamburger {
-    display: inline-block;
-    cursor: pointer;
-    width: 28px;
-    height: 24px;
-    position: relative;
+  .panel-content {
+    padding: 8px;
+    display: none;
   }
-  .hamburger span {
-    position: absolute;
-    height: 3px;
+
+  .panel-content.active {
+    display: block;
+  }
+
+  .panel-content input, .panel-content button {
     width: 100%;
-    background: #333;
-    left: 0;
-    transition: 0.3s;
-  }
-  .hamburger span:nth-child(1) { top: 0; }
-  .hamburger span:nth-child(2) { top: 50%; transform: translateY(-50%); }
-  .hamburger span:nth-child(3) { bottom: 0; }
-
-  /* 줌 버튼 오른쪽 위로 이동 */
-  .leaflet-control-zoom {
-    position: absolute !important;
-    right: 10px !important;
-    top: 10px !important;
-    left: auto !important;
-    bottom: auto !important;
-    z-index: 1001 !important;
+    margin: 4px 0;
+    padding: 6px;
+    font-size: 14px;
+    box-sizing: border-box;
   }
 
+  /* === 석삼자 버튼 → 일반 버튼 스타일 === */
+  #panelToggle {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 1100;
+    padding: 6px 12px;
+    font-size: 16px;
+    border-radius: 6px;
+    border: none;
+    background-color: #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    cursor: pointer;
+  }
+
+  /* 모바일 대응 */
+  @media(max-width: 600px) {
+    .panel { width: 70%; top: 60px; }
+  }
 </style>
 </head>
 <body>
 
-<!-- 슬라이드 패널 -->
-<div class="panel" id="slidePanel">
-  <div class="panel-header" id="panelHeader">
-    등록 / 조회
-    <div class="hamburger" id="hamburgerBtn">
-      <span></span><span></span><span></span>
-    </div>
+<!-- 석삼자 버튼 대신 일반 버튼 -->
+<button id="panelToggle">메뉴</button>
+
+<!-- 패널 -->
+<div class="panel hidden" id="slidePanel">
+  <div class="panel-header">
+    <button id="tabRegister" class="active">등록</button>
+    <button id="tabFilter">조회</button>
   </div>
-  <div class="panel-body" id="panelBody">
-    <!-- 등록 -->
-    <div id="registerTab">
-      <h4>등록</h4>
-      <input type="text" id="name" placeholder="이름">
-      <input type="text" id="city" placeholder="도시">
-      <label>시작일: <input type="date" id="startDate"></label>
-      <label>종료일: <input type="date" id="endDate"></label>
-      <button id="submitBtn">등록</button>
-    </div>
-    <hr>
-    <!-- 조회 -->
-    <div id="viewTab">
-      <h4>조회</h4>
-      <label>조회 시작: <input type="date" id="startDateFilter"></label>
-      <label>조회 종료: <input type="date" id="endDateFilter"></label>
-      <button id="filterBtn">조회</button>
-    </div>
+  <div class="panel-content active" id="registerContent">
+    <input type="text" id="name" placeholder="이름">
+    <input type="text" id="city" placeholder="도시">
+    <label>시작일: <input type="date" id="startDate"></label>
+    <label>종료일: <input type="date" id="endDate"></label>
+    <button id="submitBtn">등록</button>
+  </div>
+  <div class="panel-content" id="filterContent">
+    <label>조회 시작: <input type="date" id="startDateFilter"></label>
+    <label>조회 종료: <input type="date" id="endDateFilter"></label>
+    <button id="filterBtn">조회</button>
   </div>
 </div>
 
@@ -113,9 +112,9 @@
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-
 <script>
-const map = L.map('map').setView([36.5,127.8],7);
+// 지도 초기화 (줌 컨트롤 제거)
+const map = L.map('map', { zoomControl:false }).setView([36.5,127.8],7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 const markers = L.layerGroup().addTo(map);
 const cityCache = {};
@@ -128,7 +127,34 @@ document.getElementById('endDate').value = today;
 document.getElementById('startDateFilter').value = today;
 document.getElementById('endDateFilter').value = today;
 
-// Geocode
+// === 패널 토글 ===
+const panelToggle = document.getElementById('panelToggle');
+const slidePanel = document.getElementById('slidePanel');
+panelToggle.addEventListener('click', ()=>{
+  slidePanel.classList.toggle('hidden');
+});
+
+// === 탭 전환 ===
+const tabRegister = document.getElementById('tabRegister');
+const tabFilter = document.getElementById('tabFilter');
+const registerContent = document.getElementById('registerContent');
+const filterContent = document.getElementById('filterContent');
+
+tabRegister.addEventListener('click', ()=>{
+  tabRegister.classList.add('active');
+  tabFilter.classList.remove('active');
+  registerContent.classList.add('active');
+  filterContent.classList.remove('active');
+});
+
+tabFilter.addEventListener('click', ()=>{
+  tabFilter.classList.add('active');
+  tabRegister.classList.remove('active');
+  filterContent.classList.add('active');
+  registerContent.classList.remove('active');
+});
+
+// === Geocode & Trips ===
 async function geocode(city){
   if(cityCache[city]) return cityCache[city];
   const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ", South Korea")}`);
@@ -147,7 +173,6 @@ function isRangeOverlap(tripStart, tripEnd, filterStart, filterEnd){
   return te >= fs && ts <= fe;
 }
 
-// Load trips
 async function loadTrips(filterStart, filterEnd){
   markers.clearLayers();
   Papa.parse(SHEET_CSV,{
@@ -172,7 +197,7 @@ async function loadTrips(filterStart, filterEnd){
   });
 }
 
-// Submit
+// === Submit ===
 document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('name').value.trim();
   const city = document.getElementById('city').value.trim();
@@ -191,7 +216,6 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
     catch(e){ result = {message:"저장 완료"}; }
 
     alert(result.message || "저장 완료");
-
     document.getElementById('name').value='';
     document.getElementById('city').value='';
     document.getElementById('startDate').value=today;
@@ -203,7 +227,7 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
   }
 });
 
-// Filter
+// === Filter ===
 document.getElementById('filterBtn').addEventListener('click', ()=>{
   const start = document.getElementById('startDateFilter').value;
   const end = document.getElementById('endDateFilter').value;
@@ -212,16 +236,6 @@ document.getElementById('filterBtn').addEventListener('click', ()=>{
 
 // 초기 로드
 loadTrips(today,today);
-
-// 슬라이드 토글
-const panel = document.getElementById('slidePanel');
-document.getElementById('hamburgerBtn').addEventListener('click', ()=>{
-  if(panel.style.height === '30%'){
-    panel.style.height = 'auto';
-  } else {
-    panel.style.height = '30%';
-  }
-});
 </script>
 
 </body>
