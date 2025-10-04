@@ -1,82 +1,52 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html>
 <head>
   <meta charset="utf-8">
-  <title>출장 현황 지도</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <title>BAI 25-2 MAP</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      font-family: Arial, sans-serif;
-    }
-    #map {
-      height: 100%;
-      width: 100%;
-    }
-    .overlay {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(255,255,255,0.9);
-      padding: 10px;
-      border-radius: 10px;
+    html, body { height: 100%; margin: 0; padding: 0; font-family: Arial; }
+    #map { height: 100%; width: 100%; }
+    .controls {
+      position: absolute; top: 10px; left: 10px;
+      background: rgba(255,255,255,0.9); padding: 8px;
+      border-radius: 5px; z-index: 1000;
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      z-index: 1000;
-      width: 250px;
     }
-    input, button {
-      width: 100%;
-      margin: 5px 0;
-      padding: 6px;
-      font-size: 14px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-    }
-    button {
-      background: #4CAF50;
-      color: white;
-      cursor: pointer;
-      border: none;
-    }
-    button:hover {
-      background: #45a049;
-    }
+    .controls input, .controls button { padding: 5px; font-size: 14px; margin-right: 5px; }
   </style>
 </head>
 <body>
-  <div class="overlay">
-    <h3>출장 등록</h3>
+  <div class="controls">
     <input type="text" id="name" placeholder="이름">
-    <input type="text" id="city" placeholder="도시 (예: 부산)">
+    <input type="text" id="city" placeholder="도시">
     <input type="date" id="date">
     <button id="submitBtn">등록</button>
-    <hr>
-    <label>시작일 <input type="date" id="startDate"></label>
-    <label>종료일 <input type="date" id="endDate"></label>
+    <br><br>
+    <label>Start: <input type="date" id="startDate"></label>
+    <label>End: <input type="date" id="endDate"></label>
     <button id="filterBtn">조회</button>
   </div>
 
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw7b6Y_5wvR7JNusiBAvTIoQruhP5Xjd149Jmmwo062LbD8lBRuLox-qPdRAMJfjlmjJQ/exec";
-
     const map = L.map('map').setView([36.5, 127.8], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap'
-    }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     const markers = L.layerGroup().addTo(map);
     const cityCache = {};
 
+    const SHEET_URL = "https://script.google.com/macros/s/AKfycbw7b6Y_5wvR7JNusiBAvTIoQruhP5Xjd149Jmmwo062LbD8lBRuLox-qPdRAMJfjlmjJQ/exec"; // 웹앱 URL
+
+    // 한글/도시 이름 geocode
     async function geocode(city) {
-      if (cityCache[city]) return cityCache[city];
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ', South Korea')}`);
+      if(cityCache[city]) return cityCache[city];
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`);
       const data = await res.json();
-      if (data.length > 0) {
+      if(data.length>0){
         const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
         cityCache[city] = coords;
         return coords;
@@ -84,70 +54,64 @@
       return null;
     }
 
-    async function loadTrips(start, end) {
+    function isDateInRange(dateStr, startStr, endStr){
+      const d = new Date(dateStr), s = new Date(startStr), e = new Date(endStr);
+      const dDay = new Date(d.getFullYear(),d.getMonth(),d.getDate());
+      const sDay = new Date(s.getFullYear(),s.getMonth(),s.getDate());
+      const eDay = new Date(e.getFullYear(),e.getMonth(),e.getDate());
+      return dDay>=sDay && dDay<=eDay;
+    }
+
+    async function loadTrips(start,end){
       markers.clearLayers();
-      const res = await fetch(SCRIPT_URL);
-      const trips = await res.json();
-
-      const filtered = trips.filter(t => {
-        if (!t.date || !t.city) return false;
-        const d = new Date(t.date);
-        return (!start || d >= new Date(start)) && (!end || d <= new Date(end));
-      });
-
-      const cityMap = {};
-      for (const t of filtered) {
-        if (!cityMap[t.city]) cityMap[t.city] = [];
-        cityMap[t.city].push(t.name);
-      }
-
-      for (const city in cityMap) {
-        const coords = await geocode(city);
-        if (coords) {
-          L.marker(coords)
-            .addTo(markers)
-            .bindPopup(`<b>${city}</b><br>${cityMap[city].join('<br>')}`);
+      const csvUrl = "https://docs.google.com/spreadsheets/d/e/YOUR_CSV_LINK/pub?output=csv";
+      Papa.parse(csvUrl,{download:true,header:true,complete:async function(results){
+        const trips = results.data.filter(r=>r.name && r.city && r.date)
+          .filter(t=>isDateInRange(t.date,start,end));
+        const cityMap = {};
+        trips.forEach(t=>{
+          if(!cityMap[t.city]) cityMap[t.city]=[];
+          cityMap[t.city].push(t.name);
+        });
+        for(const city in cityMap){
+          const coords = await geocode(city);
+          if(coords) L.marker(coords).addTo(markers)
+            .bindPopup(`<b>${city}</b><br>${cityMap[city].join("<br>")}`);
         }
-      }
+      }});
     }
 
-    async function submitTrip() {
-      const name = document.getElementById('name').value.trim();
-      const city = document.getElementById('city').value.trim();
-      const date = document.getElementById('date').value;
-
-      if (!name || !city || !date) {
-        alert("모든 항목을 입력하세요.");
-        return;
-      }
-
-      await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, city, date })
-      });
-
-      alert("✅ 저장 완료!");
-      document.getElementById('name').value = '';
-      document.getElementById('city').value = '';
-      document.getElementById('date').value = '';
-      const s = document.getElementById('startDate').value;
-      const e = document.getElementById('endDate').value;
-      loadTrips(s, e);
-    }
-
-    document.getElementById('submitBtn').addEventListener('click', submitTrip);
-    document.getElementById('filterBtn').addEventListener('click', () => {
-      const s = document.getElementById('startDate').value;
-      const e = document.getElementById('endDate').value;
-      loadTrips(s, e);
-    });
-
+    // 오늘 날짜 기본값
     const today = new Date().toISOString().split('T')[0];
+    document.getElementById('date').value = today;
     document.getElementById('startDate').value = today;
     document.getElementById('endDate').value = today;
-    loadTrips(today, today);
+
+    // 등록 버튼
+    document.getElementById('submitBtn').addEventListener('click', async ()=>{
+      const name = document.getElementById('name').value;
+      const city = document.getElementById('city').value;
+      const date = document.getElementById('date').value;
+      if(!name||!city||!date){ alert("모든 항목 입력"); return; }
+      const res = await fetch(SHEET_URL,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({name,city,date})
+      });
+      const result = await res.json();
+      alert(result.message);
+      document.getElementById('name').value='';
+      document.getElementById('city').value='';
+    });
+
+    // 조회 버튼
+    document.getElementById('filterBtn').addEventListener('click', ()=>{
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+      loadTrips(start,end);
+    });
+
+    loadTrips(today,today);
   </script>
 </body>
 </html>
-
