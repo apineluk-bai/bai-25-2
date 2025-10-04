@@ -101,22 +101,30 @@ async function loadTrips(filterStart, filterEnd){
 document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('name').value.trim();
   const city = document.getElementById('city').value.trim();
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
-  if(!name || !city || !startDate || !endDate){ alert("모든 항목 입력"); return; }
+
+  // 날짜를 ISO 형식으로 변환
+  let startDate = document.getElementById('startDate').value;
+  let endDate = document.getElementById('endDate').value;
+
+  if(!name || !city || !startDate || !endDate){
+    alert("모든 항목 입력");
+    return;
+  }
+
+  // IE 등 브라우저 호환 위해 Date 객체로 확인
+  startDate = new Date(startDate).toISOString().split('T')[0];
+  endDate = new Date(endDate).toISOString().split('T')[0];
 
   try{
     const res = await fetch(WORKER_URL,{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({name,city,startDate,endDate})
+      body: JSON.stringify({name, city, startDate, endDate})
     });
-    const text = await res.text();
-    let result;
-    try { result = JSON.parse(text); } 
-    catch(e){ alert("응답이 JSON이 아닙니다: " + text); return; }
+    const result = await res.json();
     alert(result.message || "저장 완료");
 
+    // 초기화
     document.getElementById('name').value='';
     document.getElementById('city').value='';
     document.getElementById('startDate').value=today;
@@ -127,16 +135,3 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
     alert("저장 실패: "+e.message);
   }
 });
-
-// Filter
-document.getElementById('filterBtn').addEventListener('click', ()=>{
-  const start = document.getElementById('startDateFilter').value;
-  const end = document.getElementById('endDateFilter').value;
-  loadTrips(start,end);
-});
-
-// 초기 로드
-loadTrips(today,today);
-</script>
-</body>
-</html>
