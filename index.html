@@ -29,14 +29,11 @@
 
     const markers = L.layerGroup().addTo(map);
     let trips = [];
+    const cityCache = {};
 
     // Google Sheets CSV 링크
     const sheetCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
 
-    // 브라우저 캐시 (시군 좌표)
-    const cityCache = {};
-
-    // Nominatim Geocoding
     async function geocode(city) {
       if(cityCache[city]) return cityCache[city];
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ", South Korea")}`;
@@ -64,14 +61,21 @@
           dateFilter.innerHTML = `<option value="all">All</option>` +
             uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
 
-          // 지도 표시
+          // city별 그룹화
+          const cityMap = {};
           for(let t of trips){
             if(selectedDate !== "all" && t.date !== selectedDate) continue;
-            const coords = await geocode(t.city);
+            if(!cityMap[t.city]) cityMap[t.city] = [];
+            cityMap[t.city].push(t.name);
+          }
+
+          // 지도에 마커 표시
+          for(const city in cityMap){
+            const coords = await geocode(city);
             if(coords){
               L.marker(coords)
                 .addTo(markers)
-                .bindPopup(`<b>${t.name}</b><br>${t.city}<br>${t.date}<br>${t.purpose || ""}`);
+                .bindPopup(`<b>${city}</b><br>${cityMap[city].join("<br>")}`);
             }
           }
         }
