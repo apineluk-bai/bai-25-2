@@ -64,7 +64,7 @@
 
     async function loadTrips(start,end){
       markers.clearLayers();
-      const csvUrl = "https://docs.google.com/spreadsheets/d/e/YOUR_CSV_LINK/pub?output=csv";
+      const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
       Papa.parse(csvUrl,{download:true,header:true,complete:async function(results){
         const trips = results.data.filter(r=>r.name && r.city && r.date)
           .filter(t=>isDateInRange(t.date,start,end));
@@ -115,3 +115,4 @@
   </script>
 </body>
 </html>
+
