@@ -4,84 +4,108 @@
 <meta charset="UTF-8">
 <title>BAI 25-2 MAP</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 html, body { height: 100%; margin:0; padding:0; font-family: Arial; }
 #map { height: 100%; width: 100%; }
 
-/* 왼쪽 패널 */
-#sidePanel {
+/* 패널 기본 */
+.panel {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 1001;
+  top: 0; left: 0;
+  width: 30%; /* 화면 30% */
+  max-width: 300px;
+  height: 100%;
   background: rgba(255,255,255,0.95);
-  border-radius: 5px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-  width: 90px;
-  padding: 5px;
+  border-right: 1px solid #ccc;
+  box-shadow: 2px 0 6px rgba(0,0,0,0.2);
+  z-index: 1000;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
-#sidePanel button {
-  display: block;
-  width: 80px;
-  margin: 3px auto;
-  padding: 6px;
-  font-size: 14px;
+
+/* 패널 보이기 */
+.panel.show { transform: translateX(0); }
+
+/* 탭 */
+.tab-header { display: flex; }
+.tab-header button {
+  flex: 1; padding: 8px; font-size: 16px;
+  border: none; background:#eee; cursor:pointer;
+}
+.tab-header button.active { background:#ddd; font-weight:bold; }
+
+/* 내용 영역 */
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* 모바일 input 확대 방지 */
+.panel-content input, .panel-content button, .panel-content label {
+  font-size: 16px; /* 16px 이상이면 포커스 확대 방지 */
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
+/* 패널 토글 버튼 (석삼자) */
+#panelToggle {
+  position: absolute;
+  top: 10px; left: 10px;
+  z-index: 1100;
+  width: 30px; height: 30px;
+  background: #fff;
+  border: 1px solid #ccc;
   cursor: pointer;
 }
 
-/* 패널 내용 */
-.panel-content {
-  display: none;
-  margin-top: 5px;
-}
-.panel-content input, .panel-content button, .panel-content label {
-  display: block;
-  width: 95%;
-  margin: 3px auto;
-  padding: 6px;
-  font-size: 14px;
-}
-
 /* 줌 버튼 오른쪽 위 */
-.leaflet-control-zoom {
+.leaflet-control-zoom { 
   position: absolute !important;
   right: 10px !important;
   top: 10px !important;
   left: auto !important;
   bottom: auto !important;
-  z-index: 1000 !important;
+  z-index: 1001 !important;
 }
 </style>
 </head>
 <body>
 
-<div id="map"></div>
+<div id="panelToggle">&#9776;</div>
 
-<!-- 왼쪽 탭 -->
-<div id="sidePanel">
-  <button id="toggleRegister">등록</button>
-  <button id="toggleQuery">조회</button>
-
-  <!-- 내용 영역 -->
-  <div id="registerPanel" class="panel-content">
+<div class="panel" id="panel">
+  <div class="tab-header">
+    <button class="tab-btn active" data-tab="register">등록</button>
+    <button class="tab-btn" data-tab="query">조회</button>
+  </div>
+  <div class="panel-content" id="register">
+    <h4>등록</h4>
     <input type="text" id="name" placeholder="이름">
     <input type="text" id="city" placeholder="도시">
     <label>시작일: <input type="date" id="startDate"></label>
     <label>종료일: <input type="date" id="endDate"></label>
     <button id="submitBtn">등록</button>
   </div>
-
-  <div id="queryPanel" class="panel-content">
+  <div class="panel-content" id="query" style="display:none;">
+    <h4>조회</h4>
     <label>조회 시작: <input type="date" id="startDateFilter"></label>
     <label>조회 종료: <input type="date" id="endDateFilter"></label>
     <button id="filterBtn">조회</button>
   </div>
 </div>
 
+<div id="map"></div>
+
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <script>
+// 지도 기본
 const map = L.map('map').setView([36.5,127.8],7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 const markers = L.layerGroup().addTo(map);
@@ -94,6 +118,24 @@ document.getElementById('startDate').value = today;
 document.getElementById('endDate').value = today;
 document.getElementById('startDateFilter').value = today;
 document.getElementById('endDateFilter').value = today;
+
+// 패널 토글
+const panel = document.getElementById('panel');
+document.getElementById('panelToggle').addEventListener('click', ()=>{
+  panel.classList.toggle('show');
+});
+
+// 탭 기능
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.panel-content').forEach(c=>{
+      c.style.display = (c.id===tab) ? 'block' : 'none';
+    });
+  });
+});
 
 // Geocode
 async function geocode(city){
@@ -108,14 +150,12 @@ async function geocode(city){
   return null;
 }
 
-// 날짜 범위 체크
 function isRangeOverlap(tripStart, tripEnd, filterStart, filterEnd){
   const ts = new Date(tripStart), te = new Date(tripEnd);
   const fs = new Date(filterStart), fe = new Date(filterEnd);
   return te >= fs && ts <= fe;
 }
 
-// 지도에 표시
 async function loadTrips(filterStart, filterEnd){
   markers.clearLayers();
   Papa.parse(SHEET_CSV,{
@@ -124,13 +164,11 @@ async function loadTrips(filterStart, filterEnd){
     complete: async function(results){
       const trips = results.data.filter(r=>r.name && r.city && r.startDate && r.endDate)
         .filter(t=>isRangeOverlap(t.startDate,t.endDate,filterStart,filterEnd));
-
       const cityMap = {};
       trips.forEach(t=>{
         if(!cityMap[t.city]) cityMap[t.city]=[];
         cityMap[t.city].push(t.name);
       });
-
       for(const city in cityMap){
         const coords = await geocode(city);
         if(coords) L.marker(coords).addTo(markers)
@@ -147,7 +185,6 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const startDate = document.getElementById('startDate').value;
   const endDate = document.getElementById('endDate').value;
   if(!name || !city || !startDate || !endDate){ alert("모든 항목 입력"); return; }
-
   try{
     const res = await fetch(WORKER_URL,{
       method:"POST",
@@ -157,13 +194,11 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
     let result;
     try { result = await res.json(); } 
     catch(e){ result = {message:"저장 완료"}; }
-
     alert(result.message || "저장 완료");
     document.getElementById('name').value='';
     document.getElementById('city').value='';
     document.getElementById('startDate').value=today;
     document.getElementById('endDate').value=today;
-
     loadTrips(document.getElementById('startDateFilter').value, document.getElementById('endDateFilter').value);
   }catch(e){
     alert("저장 실패: "+e.message);
@@ -177,16 +212,8 @@ document.getElementById('filterBtn').addEventListener('click', ()=>{
   loadTrips(start,end);
 });
 
+// 초기 로드
 loadTrips(today,today);
-
-// --- 탭 토글 ---
-function togglePanel(panelId){
-  const panel = document.getElementById(panelId);
-  panel.style.display = panel.style.display==='block' ? 'none' : 'block';
-}
-
-document.getElementById('toggleRegister').addEventListener('click', ()=>togglePanel('registerPanel'));
-document.getElementById('toggleQuery').addEventListener('click', ()=>togglePanel('queryPanel'));
 </script>
 
 </body>
