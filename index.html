@@ -114,7 +114,7 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
     const text = await res.text();
     let result;
     try { result = JSON.parse(text); } 
-    catch(e){ alert("Apps Script 응답이 JSON이 아닙니다: " + text); return; }
+    catch(e){ alert("응답이 JSON이 아닙니다: " + text); return; }
     alert(result.message || "저장 완료");
 
     document.getElementById('name').value='';
