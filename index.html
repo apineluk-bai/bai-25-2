@@ -46,13 +46,9 @@
   const markers = L.layerGroup().addTo(map);
   const cityCache = {};
 
-  // Cloudflare Worker URL
   const WORKER_URL = "https://curly-sun-6201.apineluk.workers.dev/";
-
-  // Google Sheets CSV URL
   const SHEET_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
 
-  // 기본 날짜
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('startDate').value = today;
   document.getElementById('endDate').value = today;
@@ -104,10 +100,10 @@
   document.getElementById('submitBtn').addEventListener('click', async ()=>{
     const name = document.getElementById('name').value.trim();
     const city = document.getElementById('city').value.trim();
-    const startDate = document.getElementById('startDateInput').value;
-    const endDate = document.getElementById('endDateInput').value;
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
 
-    if(!name||!city||!startDate||!endDate){ alert("모든 항목 입력"); return; }
+    if(!name||!city||!startDate||!endDate){ alert("모든 항목을 입력해주세요."); return; }
 
     try{
       const res = await fetch(WORKER_URL,{
@@ -117,10 +113,11 @@
       });
       const result = await res.json();
       alert(result.message);
+
       document.getElementById('name').value='';
       document.getElementById('city').value='';
-      document.getElementById('startDateInput').value=today;
-      document.getElementById('endDateInput').value=today;
+      document.getElementById('startDate').value=today;
+      document.getElementById('endDate').value=today;
 
       loadTrips(document.getElementById('startDateFilter').value, document.getElementById('endDateFilter').value);
     }catch(e){
@@ -140,5 +137,3 @@
 
 </body>
 </html>
-
-
