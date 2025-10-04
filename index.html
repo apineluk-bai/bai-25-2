@@ -22,7 +22,7 @@
       position: absolute;
       top: 10px;
       left: 10px;
-      background: rgba(255,255,255,0.9);
+      background: rgba(255,255,255,0.95);
       padding: 8px;
       border-radius: 5px;
       z-index: 1000;
@@ -34,6 +34,36 @@
       font-size: 14px;
       margin-right: 5px;
     }
+
+    .sidebar {
+      position: absolute;
+      top: 80px; /* controls 아래 */
+      left: 10px;
+      width: 220px;
+      max-height: 90%;
+      overflow-y: auto;
+      background: rgba(255,255,255,0.95);
+      padding: 8px;
+      border-radius: 5px;
+      z-index: 999;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      font-size: 14px;
+    }
+
+    .sidebar table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .sidebar th, .sidebar td {
+      border: 1px solid #ccc;
+      padding: 4px;
+      text-align: left;
+    }
+
+    .sidebar th {
+      background: #f0f0f0;
+    }
   </style>
 </head>
 <body>
@@ -41,6 +71,17 @@
     <label>Start Date: <input type="date" id="startDate"></label>
     <label>End Date: <input type="date" id="endDate"></label>
     <button id="filterBtn">조회</button>
+  </div>
+
+  <div class="sidebar" id="sidebar">
+    <table>
+      <thead>
+        <tr><th>Name</th><th>City</th></tr>
+      </thead>
+      <tbody id="sidebarBody">
+        <!-- 데이터 표시 -->
+      </tbody>
+    </table>
   </div>
 
   <div id="map"></div>
@@ -89,13 +130,11 @@
         download: true,
         header: true,
         complete: async function(results){
-          trips = results.data.filter(r => r.name);
+          trips = results.data.filter(r => r.name && r.city && r.date);
 
-          const filteredTrips = trips.filter(t => {
-            if(!t.date || !t.city) return false;
-            return isDateInRange(t.date, start, end);
-          });
+          const filteredTrips = trips.filter(t => isDateInRange(t.date, start, end));
 
+          // 마커 표시
           const cityMap = {};
           for(let t of filteredTrips){
             if(!cityMap[t.city]) cityMap[t.city] = [];
@@ -110,26 +149,36 @@
                 .bindPopup(`<b>${city}</b><br>${cityMap[city].join("<br>")}`);
             }
           }
+
+          // 사이드바 표 갱신
+          const tbody = document.getElementById('sidebarBody');
+          tbody.innerHTML = "";
+          filteredTrips.forEach(t => {
+            const tr = document.createElement('tr');
+            const tdName = document.createElement('td');
+            const tdCity = document.createElement('td');
+            tdName.textContent = t.name;
+            tdCity.textContent = t.city;
+            tr.appendChild(tdName);
+            tr.appendChild(tdCity);
+            tbody.appendChild(tr);
+          });
         }
       });
     }
 
-    // 오늘 날짜 기본값
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('startDate').value = today;
     document.getElementById('endDate').value = today;
 
-    // 조회 버튼 클릭 시 데이터 갱신
     document.getElementById('filterBtn').addEventListener('click', () => {
       const start = document.getElementById('startDate').value;
       const end = document.getElementById('endDate').value;
       if(start && end) loadData(start, end);
     });
 
-    // 최초 로드
     loadData(today, today);
 
-    // Service Worker 등록
     if('serviceWorker' in navigator){
       navigator.serviceWorker.register('service-worker.js')
         .then(() => console.log("Service Worker registered"))
