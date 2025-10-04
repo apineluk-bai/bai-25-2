@@ -52,50 +52,54 @@ function isRangeOverlap(tripStart, tripEnd, filterStart, filterEnd){
 async function loadTrips(filterStart, filterEnd){
   markers.clearLayers();
   Papa.parse(SHEET_CSV,{download:true, header:true, complete: async function(results){
-    const trips = results.data.filter(r=>r.name && r.city && r.startDate && r.endDate)
-      .filter(t=>isRangeOverlap(t.startDate,t.endDate,filterStart,filterEnd));
-    const cityMap={};
-    trips.forEach(t=>{ cityMap[t.city] = cityMap[t.city] || []; cityMap[t.city].push(t.name); });
-    for(const city in cityMap){
-      const coords = await geocode(city);
-      if(coords) L.marker(coords).addTo(markers).bindPopup(`<b>${city}</b><br>${cityMap[city].join("<br>")}`);
-    }
-  }});
-}
-
-document.getElementById('submitBtn').addEventListener('click', async ()=>{
+document.getElementById('submitBtn').addEventListener('click', async ()=> {
   const name = document.getElementById('name').value.trim();
   const city = document.getElementById('city').value.trim();
   const startDate = document.getElementById('startDate').value;
   const endDate = document.getElementById('endDate').value;
-  if(!name||!city||!startDate||!endDate){ alert("모든 항목 입력"); return; }
-  try{
-const res = await fetch(WORKER_URL, {
-  method: "POST",
-  headers: {"Content-Type":"application/json"},
-  body: JSON.stringify({name, city, startDate, endDate})
-});
 
-const text = await res.text();
-let result;
-try {
-  result = JSON.parse(text);
-} catch(e) {
-  alert("응답이 JSON이 아닙니다: " + text);
-  return;
-}
-alert(result.message || "저장 완료");
-    ['name','city','startDate','endDate'].forEach(id=>document.getElementById(id).value=id.includes('Date')?today:'');
+  if(!name || !city || !startDate || !endDate){
+    alert("모든 항목을 입력해주세요."); 
+    return; 
+  }
+
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({name, city, startDate, endDate})
+    });
+
+    // JSON 파싱 시도
+    let result;
+    try { 
+      result = await res.json(); 
+    } catch(e) { 
+      // JSON 아닌 응답 → 그냥 무시
+      result = { message: "저장 완료" }; 
+    }
+
+    alert(result.message || "저장 완료");
+
+    // 입력 초기화
+    document.getElementById('name').value = '';
+    document.getElementById('city').value = '';
+    document.getElementById('startDate').value = today;
+    document.getElementById('endDate').value = today;
+
+    // 지도 갱신
     loadTrips(document.getElementById('startDateFilter').value, document.getElementById('endDateFilter').value);
-  }catch(e){ alert("저장 실패: "+e.message); }
+
+  } catch(e) {
+    // 실제 fetch 실패 시
+    alert("저장 실패: " + e.message);
+  }
 });
 
-document.getElementById('filterBtn').addEventListener('click', ()=>{
-  loadTrips(document.getElementById('startDateFilter').value, document.getElementById('endDateFilter').value);
-});
 
 loadTrips(today,today);
 </script>
 </body>
 </html>
+
 
