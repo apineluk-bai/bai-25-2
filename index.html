@@ -5,97 +5,73 @@
 <title>BAI 25-2 MAP</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <style>
-  html, body { height: 100%; margin:0; padding:0; font-family: Arial; }
-  #map { height: 100%; width: 100%; }
+html, body { height: 100%; margin:0; padding:0; font-family: Arial; }
+#map { height: 100%; width: 100%; }
 
-  /* --- 슬라이드 패널 --- */
-  .panel {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    max-height: 30%;  /* 화면 30% */
-    background: rgba(255,255,255,0.95);
-    border-radius: 12px 12px 0 0;
-    box-shadow: 0 -2px 6px rgba(0,0,0,0.3);
-    transform: translateY(70%);
-    transition: transform 0.3s ease;
-    z-index: 1000;
-    overflow: hidden;
-    font-size: 14px;
-  }
-  .panel.open { transform: translateY(0%); }
+/* 왼쪽 패널 */
+#sidePanel {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1001;
+  background: rgba(255,255,255,0.95);
+  border-radius: 5px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  width: 90px;
+  padding: 5px;
+}
+#sidePanel button {
+  display: block;
+  width: 80px;
+  margin: 3px auto;
+  padding: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
 
-  .panel-header {
-    display: flex;
-    justify-content: space-between;
-    background: #eee;
-    padding: 6px 10px;
-    cursor: pointer;
-    font-weight: bold;
-  }
-  .panel-tabs { display: flex; }
-  .panel-tabs button {
-    flex: 1;
-    padding: 6px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-weight: bold;
-  }
-  .panel-tabs button.active { background: #ddd; border-radius: 4px; }
+/* 패널 내용 */
+.panel-content {
+  display: none;
+  margin-top: 5px;
+}
+.panel-content input, .panel-content button, .panel-content label {
+  display: block;
+  width: 95%;
+  margin: 3px auto;
+  padding: 6px;
+  font-size: 14px;
+}
 
-  .panel-content { padding: 8px; overflow-y: auto; height: calc(100% - 40px); }
-
-  .panel-content input, .panel-content button, .panel-content label {
-    display: block;
-    width: 95%;
-    margin: 3px auto;
-    padding: 6px;
-    font-size: 14px;
-  }
-  .panel-content hr { margin: 4px 0; }
-
-  /* ✅ 줌 버튼 오른쪽 위로 이동 */
-  .leaflet-control-zoom {
-    position: absolute !important;
-    right: 10px !important;
-    top: 10px !important;
-    left: auto !important;
-    bottom: auto !important;
-    z-index: 1001 !important;
-  }
-
-  /* --- 모바일 반응형 --- */
-  @media(max-width:600px){
-    .panel { max-height: 30%; font-size:14px; }
-    .panel-content input, .panel-content button { font-size:14px; }
-  }
+/* 줌 버튼 오른쪽 위 */
+.leaflet-control-zoom {
+  position: absolute !important;
+  right: 10px !important;
+  top: 10px !important;
+  left: auto !important;
+  bottom: auto !important;
+  z-index: 1000 !important;
+}
 </style>
 </head>
 <body>
 
-<!-- 지도 -->
 <div id="map"></div>
 
-<!-- 슬라이드 패널 -->
-<div class="panel" id="slidePanel">
-  <div class="panel-header" id="panelToggle">
-    <span>등록 / 조회</span>
-    <span>▼</span>
-  </div>
-  <div class="panel-tabs">
-    <button class="active" data-tab="register">등록</button>
-    <button data-tab="query">조회</button>
-  </div>
-  <div class="panel-content" id="register">
+<!-- 왼쪽 탭 -->
+<div id="sidePanel">
+  <button id="toggleRegister">등록</button>
+  <button id="toggleQuery">조회</button>
+
+  <!-- 내용 영역 -->
+  <div id="registerPanel" class="panel-content">
     <input type="text" id="name" placeholder="이름">
     <input type="text" id="city" placeholder="도시">
     <label>시작일: <input type="date" id="startDate"></label>
     <label>종료일: <input type="date" id="endDate"></label>
     <button id="submitBtn">등록</button>
   </div>
-  <div class="panel-content" id="query" style="display:none">
+
+  <div id="queryPanel" class="panel-content">
     <label>조회 시작: <input type="date" id="startDateFilter"></label>
     <label>조회 종료: <input type="date" id="endDateFilter"></label>
     <button id="filterBtn">조회</button>
@@ -119,7 +95,7 @@ document.getElementById('endDate').value = today;
 document.getElementById('startDateFilter').value = today;
 document.getElementById('endDateFilter').value = today;
 
-// Geocode city
+// Geocode
 async function geocode(city){
   if(cityCache[city]) return cityCache[city];
   const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ", South Korea")}`);
@@ -132,13 +108,14 @@ async function geocode(city){
   return null;
 }
 
+// 날짜 범위 체크
 function isRangeOverlap(tripStart, tripEnd, filterStart, filterEnd){
   const ts = new Date(tripStart), te = new Date(tripEnd);
   const fs = new Date(filterStart), fe = new Date(filterEnd);
   return te >= fs && ts <= fe;
 }
 
-// Load trips to map
+// 지도에 표시
 async function loadTrips(filterStart, filterEnd){
   markers.clearLayers();
   Papa.parse(SHEET_CSV,{
@@ -163,7 +140,7 @@ async function loadTrips(filterStart, filterEnd){
   });
 }
 
-// Submit
+// 등록
 document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('name').value.trim();
   const city = document.getElementById('city').value.trim();
@@ -193,29 +170,24 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
   }
 });
 
-// Filter
+// 조회
 document.getElementById('filterBtn').addEventListener('click', ()=>{
   const start = document.getElementById('startDateFilter').value;
   const end = document.getElementById('endDateFilter').value;
   loadTrips(start,end);
 });
 
-// 초기 로드
 loadTrips(today,today);
 
-// --- 패널 열기/닫기 및 탭 ---
-const panel = document.getElementById('slidePanel');
-document.getElementById('panelToggle').addEventListener('click', ()=>panel.classList.toggle('open'));
+// --- 탭 토글 ---
+function togglePanel(panelId){
+  const panel = document.getElementById(panelId);
+  panel.style.display = panel.style.display==='block' ? 'none' : 'block';
+}
 
-const tabs = document.querySelectorAll('.panel-tabs button');
-tabs.forEach(tab=>{
-  tab.addEventListener('click', ()=>{
-    tabs.forEach(t=>t.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById('register').style.display = tab.dataset.tab==='register' ? 'block' : 'none';
-    document.getElementById('query').style.display = tab.dataset.tab==='query' ? 'block' : 'none';
-  });
-});
+document.getElementById('toggleRegister').addEventListener('click', ()=>togglePanel('registerPanel'));
+document.getElementById('toggleQuery').addEventListener('click', ()=>togglePanel('queryPanel'));
 </script>
+
 </body>
 </html>
