@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <title>BAI 25-2 MAP</title>
-  <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="manifest" href="manifest.json">
   <style>
     body { font-family: Arial, sans-serif; margin: 10px; }
     #map { height: 70vh; margin-top: 10px; }
@@ -15,7 +15,8 @@
   <h2>Team Business Trip Map</h2>
   <label>Start Date: <input type="date" id="startDate"></label>
   <label>End Date: <input type="date" id="endDate"></label>
-  <button id="refreshBtn">조회</button>
+  <button id="filterBtn">조회</button>
+
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -33,46 +34,15 @@
 
     const sheetCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
 
-    const cityNormalize = {
-      "서울특별시": "서울",
-      "부산광역시": "부산",
-      "대구광역시": "대구",
-      "인천광역시": "인천",
-      "광주광역시": "광주",
-      "대전광역시": "대전",
-      "울산광역시": "울산",
-      "세종특별자치시": "세종"
-    };
-
-    const cityFallback = {
-      "서울": [37.5665, 126.9780],
-      "부산": [35.1796, 129.0756],
-      "대구": [35.8714, 128.6014],
-      "인천": [37.4563, 126.7052],
-      "광주": [35.1595, 126.8526],
-      "대전": [36.3504, 127.3845],
-      "울산": [35.5384, 129.3114],
-      "세종": [36.4800, 127.2890]
-    };
-
     async function geocode(city) {
-      const normalized = cityNormalize[city] || city;
-      if(cityCache[normalized]) return cityCache[normalized];
-      try {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(normalized + ", South Korea")}`;
-        const response = await fetch(url);
-        const data = await response.json();
-        if(data.length > 0){
-          const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-          cityCache[normalized] = coords;
-          return coords;
-        }
-        if(cityFallback[normalized]){
-          cityCache[normalized] = cityFallback[normalized];
-          return cityFallback[normalized];
-        }
-      } catch(e){
-        console.warn("좌표 검색 실패:", city, e);
+      if(cityCache[city]) return cityCache[city];
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ", South Korea")}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if(data.length > 0){
+        const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+        cityCache[city] = coords;
+        return coords;
       }
       return null;
     }
@@ -94,13 +64,18 @@
         header: true,
         complete: async function(results){
           trips = results.data.filter(r => r.name);
-          const filteredTrips = trips.filter(t => t.date && t.city && isDateInRange(t.date, start, end));
+
+          const filteredTrips = trips.filter(t => {
+            if(!t.date || !t.city) return false;
+            return isDateInRange(t.date, start, end);
+          });
+
           const cityMap = {};
           for(let t of filteredTrips){
-            const normalized = cityNormalize[t.city] || t.city;
-            if(!cityMap[normalized]) cityMap[normalized] = [];
-            cityMap[normalized].push(t.name);
+            if(!cityMap[t.city]) cityMap[t.city] = [];
+            cityMap[t.city].push(t.name);
           }
+
           for(const city in cityMap){
             const coords = await geocode(city);
             if(coords){
@@ -113,11 +88,13 @@
       });
     }
 
+    // 오늘 날짜 기본값
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('startDate').value = today;
     document.getElementById('endDate').value = today;
 
-    document.getElementById('refreshBtn').addEventListener('click', () => {
+    // 조회 버튼 클릭 시 데이터 갱신
+    document.getElementById('filterBtn').addEventListener('click', () => {
       const start = document.getElementById('startDate').value;
       const end = document.getElementById('endDate').value;
       if(start && end) loadData(start, end);
@@ -126,13 +103,12 @@
     // 최초 로드
     loadData(today, today);
 
-    // PWA 등록
+    // Service Worker 등록
     if('serviceWorker' in navigator){
       navigator.serviceWorker.register('service-worker.js')
         .then(() => console.log("Service Worker registered"))
         .catch(err => console.log("Service Worker registration failed:", err));
     }
-
   </script>
 </body>
 </html>
