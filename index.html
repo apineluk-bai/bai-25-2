@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>BAI 25-2 MAP</title>
+  <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <style>
     body { font-family: Arial, sans-serif; margin: 10px; }
@@ -11,11 +12,10 @@
   </style>
 </head>
 <body>
-  <h2>BAI Business Trip Map</h2>
+  <h2>Team Business Trip Map</h2>
   <label>Start Date: <input type="date" id="startDate"></label>
   <label>End Date: <input type="date" id="endDate"></label>
   <button id="refreshBtn">조회</button>
-
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -33,7 +33,6 @@
 
     const sheetCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
 
-    // 한글 도시 이름 정규화
     const cityNormalize = {
       "서울특별시": "서울",
       "부산광역시": "부산",
@@ -45,7 +44,6 @@
       "세종특별자치시": "세종"
     };
 
-    // 좌표 fallback
     const cityFallback = {
       "서울": [37.5665, 126.9780],
       "부산": [35.1796, 129.0756],
@@ -60,7 +58,6 @@
     async function geocode(city) {
       const normalized = cityNormalize[city] || city;
       if(cityCache[normalized]) return cityCache[normalized];
-
       try {
         const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(normalized + ", South Korea")}`;
         const response = await fetch(url);
@@ -70,7 +67,6 @@
           cityCache[normalized] = coords;
           return coords;
         }
-        // fallback 좌표
         if(cityFallback[normalized]){
           cityCache[normalized] = cityFallback[normalized];
           return cityFallback[normalized];
@@ -81,16 +77,13 @@
       return null;
     }
 
-    // 날짜 비교 (시간 무시)
     function isDateInRange(dateStr, startStr, endStr) {
       const d = new Date(dateStr);
       const s = new Date(startStr);
       const e = new Date(endStr);
-
       const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
       const sDay = new Date(s.getFullYear(), s.getMonth(), s.getDate());
       const eDay = new Date(e.getFullYear(), e.getMonth(), e.getDate());
-
       return dDay >= sDay && dDay <= eDay;
     }
 
@@ -101,16 +94,13 @@
         header: true,
         complete: async function(results){
           trips = results.data.filter(r => r.name);
-
           const filteredTrips = trips.filter(t => t.date && t.city && isDateInRange(t.date, start, end));
-
           const cityMap = {};
           for(let t of filteredTrips){
             const normalized = cityNormalize[t.city] || t.city;
             if(!cityMap[normalized]) cityMap[normalized] = [];
             cityMap[normalized].push(t.name);
           }
-
           for(const city in cityMap){
             const coords = await geocode(city);
             if(coords){
@@ -123,12 +113,10 @@
       });
     }
 
-    // 오늘 날짜 기본값
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('startDate').value = today;
     document.getElementById('endDate').value = today;
 
-    // 조회 버튼 클릭
     document.getElementById('refreshBtn').addEventListener('click', () => {
       const start = document.getElementById('startDate').value;
       const end = document.getElementById('endDate').value;
@@ -137,6 +125,13 @@
 
     // 최초 로드
     loadData(today, today);
+
+    // PWA 등록
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.register('service-worker.js')
+        .then(() => console.log("Service Worker registered"))
+        .catch(err => console.log("Service Worker registration failed:", err));
+    }
 
   </script>
 </body>
