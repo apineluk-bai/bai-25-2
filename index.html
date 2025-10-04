@@ -45,6 +45,19 @@
       return null;
     }
 
+    // 날짜 비교 함수 (시간대 무시)
+    function isDateInRange(dateStr, startStr, endStr) {
+      const d = new Date(dateStr);
+      const s = new Date(startStr);
+      const e = new Date(endStr);
+
+      const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const sDay = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+      const eDay = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+
+      return dDay >= sDay && dDay <= eDay;
+    }
+
     async function loadData(start, end) {
       markers.clearLayers();
       Papa.parse(sheetCSV, {
@@ -55,8 +68,7 @@
 
           const filteredTrips = trips.filter(t => {
             if(!t.date || !t.city) return false;
-            const tripDate = new Date(t.date);
-            return tripDate >= new Date(start) && tripDate <= new Date(end);
+            return isDateInRange(t.date, start, end);
           });
 
           const cityMap = {};
@@ -65,7 +77,6 @@
             cityMap[t.city].push(t.name);
           }
 
-          // 마커 표시
           for(const city in cityMap){
             const coords = await geocode(city);
             if(coords){
@@ -83,7 +94,7 @@
     document.getElementById('startDate').value = today;
     document.getElementById('endDate').value = today;
 
-    // 날짜 입력 변경 시 자동 갱신
+    // 날짜 변경 시 자동 갱신
     document.getElementById('startDate').addEventListener('change', () => {
       const start = document.getElementById('startDate').value;
       const end = document.getElementById('endDate').value;
