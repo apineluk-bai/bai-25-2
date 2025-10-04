@@ -39,9 +39,12 @@
     const markers = L.layerGroup().addTo(map);
     const cityCache = {};
 
-    const SHEET_URL = "https://script.google.com/macros/s/AKfycbw7b6Y_5wvR7JNusiBAvTIoQruhP5Xjd149Jmmwo062LbD8lBRuLox-qPdRAMJfjlmjJQ/exec"; // 웹앱 URL
+    // ✅ 본인의 Apps Script 웹앱 URL로 바꿔주세요
+    const SHEET_URL = "hhttps://script.google.com/macros/s/AKfycbw7b6Y_5wvR7JNusiBAvTIoQruhP5Xjd149Jmmwo062LbD8lBRuLox-qPdRAMJfjlmjJQ/exec";
 
-    // 한글/도시 이름 geocode
+    // ✅ 본인의 시트 CSV 공개 링크
+    const SHEET_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
+
     async function geocode(city) {
       if(cityCache[city]) return cityCache[city];
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`);
@@ -64,21 +67,26 @@
 
     async function loadTrips(start,end){
       markers.clearLayers();
-      const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
-      Papa.parse(csvUrl,{download:true,header:true,complete:async function(results){
-        const trips = results.data.filter(r=>r.name && r.city && r.date)
-          .filter(t=>isDateInRange(t.date,start,end));
-        const cityMap = {};
-        trips.forEach(t=>{
-          if(!cityMap[t.city]) cityMap[t.city]=[];
-          cityMap[t.city].push(t.name);
-        });
-        for(const city in cityMap){
-          const coords = await geocode(city);
-          if(coords) L.marker(coords).addTo(markers)
-            .bindPopup(`<b>${city}</b><br>${cityMap[city].join("<br>")}`);
+      Papa.parse(SHEET_CSV,{
+        download:true,
+        header:true,
+        complete:async function(results){
+          const trips = results.data.filter(r=>r.name && r.city && r.date)
+            .filter(t=>isDateInRange(t.date,start,end));
+
+          const cityMap = {};
+          trips.forEach(t=>{
+            if(!cityMap[t.city]) cityMap[t.city]=[];
+            cityMap[t.city].push(t.name);
+          });
+
+          for(const city in cityMap){
+            const coords = await geocode(city);
+            if(coords) L.marker(coords).addTo(markers)
+              .bindPopup(`<b>${city}</b><br>${cityMap[city].join("<br>")}`);
+          }
         }
-      }});
+      });
     }
 
     // 오늘 날짜 기본값
@@ -89,19 +97,23 @@
 
     // 등록 버튼
     document.getElementById('submitBtn').addEventListener('click', async ()=>{
-      const name = document.getElementById('name').value;
-      const city = document.getElementById('city').value;
+      const name = document.getElementById('name').value.trim();
+      const city = document.getElementById('city').value.trim();
       const date = document.getElementById('date').value;
-      if(!name||!city||!date){ alert("모든 항목 입력"); return; }
-      const res = await fetch(SHEET_URL,{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({name,city,date})
-      });
-      const result = await res.json();
-      alert(result.message);
-      document.getElementById('name').value='';
-      document.getElementById('city').value='';
+      if(!name||!city||!date){ alert("모든 항목을 입력해주세요."); return; }
+      try{
+        const res = await fetch(SHEET_URL,{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({name,city,date})
+        });
+        const result = await res.json();
+        alert(result.message);
+        document.getElementById('name').value='';
+        document.getElementById('city').value='';
+      }catch(e){
+        alert("저장 실패: "+e.message);
+      }
     });
 
     // 조회 버튼
@@ -115,4 +127,3 @@
   </script>
 </body>
 </html>
-
