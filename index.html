@@ -4,27 +4,23 @@
   <meta charset="utf-8">
   <title>Team Business Trip Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-  <link rel="manifest" href="manifest.json">
   <style>
     body { font-family: Arial, sans-serif; margin: 10px; }
     #map { height: 70vh; margin-top: 10px; }
-    select { padding: 5px; font-size: 14px; }
+    input { padding: 5px; font-size: 14px; margin-right: 10px; }
   </style>
 </head>
 <body>
   <h2>Team Business Trip Map</h2>
-  <label>Select Date:
-    <select id="dateFilter">
-      <option value="all">All</option>
-    </select>
-  </label>
+  <label>Start Date: <input type="date" id="startDate"></label>
+  <label>End Date: <input type="date" id="endDate"></label>
+
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    // 지도 초기화
     const map = L.map('map').setView([36.5, 127.8], 7);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap'
@@ -34,10 +30,8 @@
     let trips = [];
     const cityCache = {};
 
-    // Google Sheets CSV 링크
     const sheetCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
 
-    // 시군 → 좌표 변환 (캐싱)
     async function geocode(city) {
       if(cityCache[city]) return cityCache[city];
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ", South Korea")}`;
@@ -51,8 +45,7 @@
       return null;
     }
 
-    // 데이터 불러오기 및 마커 표시
-    async function loadData(selectedDate) {
+    async function loadData(start, end) {
       markers.clearLayers();
       Papa.parse(sheetCSV, {
         download: true,
@@ -60,21 +53,18 @@
         complete: async function(results){
           trips = results.data.filter(r => r.name);
 
-          // 날짜 필터
-          const dateFilter = document.getElementById('dateFilter');
-          const uniqueDates = [...new Set(trips.map(t => t.date))].sort();
-          dateFilter.innerHTML = `<option value="all">All</option>` +
-            uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
+          const filteredTrips = trips.filter(t => {
+            if(!t.date) return false;
+            const tripDate = new Date(t.date);
+            return tripDate >= new Date(start) && tripDate <= new Date(end);
+          });
 
-          // 시군별 그룹화
           const cityMap = {};
-          for(let t of trips){
-            if(selectedDate !== "all" && t.date !== selectedDate) continue;
+          for(let t of filteredTrips){
             if(!cityMap[t.city]) cityMap[t.city] = [];
             cityMap[t.city].push(t.name);
           }
 
-          // 지도에 마커 표시
           for(const city in cityMap){
             const coords = await geocode(city);
             if(coords){
@@ -87,25 +77,33 @@
       });
     }
 
-    // 날짜 필터 이벤트
-    document.getElementById('dateFilter').addEventListener('change', e => {
-      loadData(e.target.value);
+    // 오늘 날짜 기본값 설정
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('startDate').value = today;
+    document.getElementById('endDate').value = today;
+
+    // 날짜 변경 시 자동 필터 적용
+    document.getElementById('startDate').addEventListener('change', () => {
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+      if(start && end) loadData(start, end);
+    });
+
+    document.getElementById('endDate').addEventListener('change', () => {
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+      if(start && end) loadData(start, end);
     });
 
     // 최초 로드
-    loadData("all");
+    loadData(today, today);
 
     // 1분마다 자동 갱신
     setInterval(() => {
-      loadData(document.getElementById('dateFilter').value);
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+      loadData(start, end);
     }, 60000);
-
-    // Service Worker 등록 (PWA)
-    if('serviceWorker' in navigator){
-      navigator.serviceWorker.register('service-worker.js')
-        .then(() => console.log('Service Worker registered'))
-        .catch(err => console.log('Service Worker registration failed', err));
-    }
   </script>
 </body>
 </html>
