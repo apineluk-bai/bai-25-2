@@ -37,90 +37,81 @@
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script>
-const map = L.map('map').setView([36.5,127.8],7);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-const markers = L.layerGroup().addTo(map);
-const cityCache = {};
+  const map = L.map('map').setView([36.5,127.8],7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  const markers = L.layerGroup().addTo(map);
+  const cityCache = {};
+  const today = new Date().toISOString().split('T')[0];
 
-const SHEET_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
+  document.getElementById('startDate').value = today;
+  document.getElementById('endDate').value = today;
+  document.getElementById('startDateFilter').value = today;
+  document.getElementById('endDateFilter').value = today;
 
-const today = new Date().toISOString().split('T')[0];
-document.getElementById('startDate').value = today;
-document.getElementById('endDate').value = today;
-document.getElementById('startDateFilter').value = today;
-document.getElementById('endDateFilter').value = today;
-
-// 지도 마커
-async function geocode(city){
-  if(cityCache[city]) return cityCache[city];
-  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ", South Korea")}`);
-  const data = await res.json();
-  if(data.length>0){
-    const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-    cityCache[city] = coords;
-    return coords;
+  async function geocode(city){
+    if(cityCache[city]) return cityCache[city];
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ", South Korea")}`);
+    const data = await res.json();
+    if(data.length>0){
+      const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+      cityCache[city] = coords;
+      return coords;
+    }
+    return null;
   }
-  return null;
-}
 
-function isRangeOverlap(tripStart, tripEnd, filterStart, filterEnd){
-  const ts = new Date(tripStart), te = new Date(tripEnd);
-  const fs = new Date(filterStart), fe = new Date(filterEnd);
-  return te >= fs && ts <= fe;
-}
+  function isRangeOverlap(tripStart, tripEnd, filterStart, filterEnd){
+    const ts = new Date(tripStart), te = new Date(tripEnd);
+    const fs = new Date(filterStart), fe = new Date(filterEnd);
+    return te >= fs && ts <= fe;
+  }
 
-async function loadTrips(filterStart, filterEnd){
-  markers.clearLayers();
-  Papa.parse(SHEET_CSV,{
-    download:true,
-    header:true,
-    complete: async function(results){
-      const trips = results.data.filter(r=>r.name && r.city && r.startDate && r.endDate)
-        .filter(t=>isRangeOverlap(t.startDate,t.endDate,filterStart,filterEnd));
+  function loadTrips(filterStart, filterEnd){
+    markers.clearLayers();
+    google.script.run.withSuccessHandler(trips => {
+      const filtered = trips.filter(t => t.name && t.city && t.startDate && t.endDate)
+        .filter(t => isRangeOverlap(t.startDate,t.endDate,filterStart,filterEnd));
+
       const cityMap = {};
-      trips.forEach(t=>{
-        if(!cityMap[t.city]) cityMap[t.city]=[];
+      filtered.forEach(t => {
+        if(!cityMap[t.city]) cityMap[t.city] = [];
         cityMap[t.city].push(t.name);
       });
-      for(const city in cityMap){
+
+      Object.keys(cityMap).forEach(async city => {
         const coords = await geocode(city);
         if(coords) L.marker(coords).addTo(markers)
           .bindPopup(`<b>${city}</b><br>${cityMap[city].join("<br>")}`);
-      }
-    }
+      });
+    }).getTrips();
+  }
+
+  document.getElementById('submitBtn').addEventListener('click', ()=>{
+    const name = document.getElementById('name').value.trim();
+    const city = document.getElementById('city').value.trim();
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+
+    if(!name || !city || !startDate || !endDate){ alert("모든 항목 입력"); return; }
+
+    google.script.run.withSuccessHandler(result => {
+      alert(result.message || "저장 완료");
+      document.getElementById('name').value='';
+      document.getElementById('city').value='';
+      document.getElementById('startDate').value=today;
+      document.getElementById('endDate').value=today;
+      loadTrips(document.getElementById('startDateFilter').value, document.getElementById('endDateFilter').value);
+    }).saveTrip({name, city, startDate, endDate});
   });
-}
 
-// 등록 버튼
-document.getElementById('submitBtn').addEventListener('click', ()=>{
-  const name = document.getElementById('name').value.trim();
-  const city = document.getElementById('city').value.trim();
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
+  document.getElementById('filterBtn').addEventListener('click', ()=>{
+    const start = document.getElementById('startDateFilter').value;
+    const end = document.getElementById('endDateFilter').value;
+    loadTrips(start,end);
+  });
 
-  if(!name || !city || !startDate || !endDate){ alert("모든 항목 입력"); return; }
-
-  google.script.run.withSuccessHandler((result)=>{
-    alert(result.message || "저장 완료");
-    document.getElementById('name').value='';
-    document.getElementById('city').value='';
-    document.getElementById('startDate').value=today;
-    document.getElementById('endDate').value=today;
-    loadTrips(document.getElementById('startDateFilter').value, document.getElementById('endDateFilter').value);
-  }).saveTrip({name, city, startDate, endDate});
-});
-
-// 조회 버튼
-document.getElementById('filterBtn').addEventListener('click', ()=>{
-  const start = document.getElementById('startDateFilter').value;
-  const end = document.getElementById('endDateFilter').value;
-  loadTrips(start,end);
-});
-
-// 초기 로드
-loadTrips(today,today);
+  loadTrips(today,today);
 </script>
 </body>
 </html>
