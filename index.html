@@ -2,8 +2,9 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>BAI Business trip Map</title>
+  <title>Team Business Trip Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="manifest" href="manifest.json">
   <style>
     body { font-family: Arial, sans-serif; margin: 10px; }
     #map { height: 70vh; margin-top: 10px; }
@@ -14,6 +15,7 @@
   <h2>Team Business Trip Map</h2>
   <label>Start Date: <input type="date" id="startDate"></label>
   <label>End Date: <input type="date" id="endDate"></label>
+  <button id="filterBtn">Filter</button>
 
   <div id="map"></div>
 
@@ -53,6 +55,7 @@
         complete: async function(results){
           trips = results.data.filter(r => r.name);
 
+          // 날짜 필터
           const filteredTrips = trips.filter(t => {
             if(!t.date) return false;
             const tripDate = new Date(t.date);
@@ -82,17 +85,12 @@
     document.getElementById('startDate').value = today;
     document.getElementById('endDate').value = today;
 
-    // 날짜 변경 시 자동 필터 적용
-    document.getElementById('startDate').addEventListener('change', () => {
+    document.getElementById('filterBtn').addEventListener('click', () => {
       const start = document.getElementById('startDate').value;
       const end = document.getElementById('endDate').value;
-      if(start && end) loadData(start, end);
-    });
-
-    document.getElementById('endDate').addEventListener('change', () => {
-      const start = document.getElementById('startDate').value;
-      const end = document.getElementById('endDate').value;
-      if(start && end) loadData(start, end);
+      if(start && end){
+        loadData(start, end);
+      }
     });
 
     // 최초 로드
@@ -104,11 +102,12 @@
       const end = document.getElementById('endDate').value;
       loadData(start, end);
     }, 60000);
+
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.register('service-worker.js')
+        .then(() => console.log('Service Worker registered'))
+        .catch(err => console.log('Service Worker registration failed', err));
+    }
   </script>
 </body>
 </html>
-
-
-
-
-
