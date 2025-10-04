@@ -5,43 +5,29 @@
 <title>BAI 25-2 MAP</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <style>
-  /* 오버레이 공통 */
-  #overlay {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 5;
-    background: rgba(255, 255, 255, 0.9);
-    padding: 16px;
-    border-radius: 12px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    width: 300px;
-    max-height: 80vh;
-    overflow-y: auto;
-    font-size: 16px;
-    transition: all 0.3s ease;
+  html, body { height: 100%; margin:0; padding:0; font-family: Arial; }
+  #map { height: 100%; width: 100%; }
+  .controls {
+    position: absolute; top: 10px; left: 10px;
+    background: rgba(255,255,255,0.95); padding: 8px;
+    border-radius: 5px; z-index: 1000;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    max-width: 260px;
   }
+  .controls input, .controls button { padding:5px; font-size:14px; margin-right:5px; margin-top:2px; }
+  .controls hr { margin:5px 0; }
 
-  /* 모바일 화면에서 오버레이 크기 자동 확대 */
-  @media (max-width: 768px) {
-    #overlay {
-      top: auto;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 90vw;          /* 화면의 90% 폭 */
-      max-height: 60vh;     /* 세로 최대 높이 */
-      font-size: 18px;      /* 텍스트 크기 약간 키움 */
-      padding: 20px;
-    }
-
-    #overlay select,
-    #overlay button {
-      font-size: 18px;
-      padding: 10px;
-    }
+  /* ✅ 줌 버튼 오른쪽 위로 이동 */
+  .leaflet-control-zoom {
+    position: absolute !important;
+    right: 10px !important;
+    top: 10px !important;
+    left: auto !important;
+    bottom: auto !important;
+    z-index: 1001 !important;
   }
 </style>
+
 </head>
 <body>
 
