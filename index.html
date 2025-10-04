@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>Team Business Trip Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="manifest" href="manifest.json">
   <style>
     body { font-family: Arial, sans-serif; margin: 10px; }
     #map { height: 70vh; margin-top: 10px; }
@@ -21,7 +22,9 @@
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
   <script>
+    // 지도 초기화
     const map = L.map('map').setView([36.5, 127.8], 7);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap'
@@ -34,6 +37,7 @@
     // Google Sheets CSV 링크
     const sheetCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
 
+    // 시군 → 좌표 변환 (캐싱)
     async function geocode(city) {
       if(cityCache[city]) return cityCache[city];
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ", South Korea")}`;
@@ -47,6 +51,7 @@
       return null;
     }
 
+    // 데이터 불러오기 및 마커 표시
     async function loadData(selectedDate) {
       markers.clearLayers();
       Papa.parse(sheetCSV, {
@@ -61,7 +66,7 @@
           dateFilter.innerHTML = `<option value="all">All</option>` +
             uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
 
-          // city별 그룹화
+          // 시군별 그룹화
           const cityMap = {};
           for(let t of trips){
             if(selectedDate !== "all" && t.date !== selectedDate) continue;
@@ -82,16 +87,25 @@
       });
     }
 
+    // 날짜 필터 이벤트
     document.getElementById('dateFilter').addEventListener('change', e => {
       loadData(e.target.value);
     });
 
+    // 최초 로드
     loadData("all");
 
     // 1분마다 자동 갱신
     setInterval(() => {
       loadData(document.getElementById('dateFilter').value);
     }, 60000);
+
+    // Service Worker 등록 (PWA)
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.register('service-worker.js')
+        .then(() => console.log('Service Worker registered'))
+        .catch(err => console.log('Service Worker registration failed', err));
+    }
   </script>
 </body>
 </html>
