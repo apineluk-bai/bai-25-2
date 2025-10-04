@@ -70,9 +70,21 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const endDate = document.getElementById('endDate').value;
   if(!name||!city||!startDate||!endDate){ alert("모든 항목 입력"); return; }
   try{
-    const res = await fetch(WORKER_URL,{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name,city,startDate,endDate})});
-    const result = await res.json();
-    alert(result.message || "저장 완료");
+const res = await fetch(WORKER_URL, {
+  method: "POST",
+  headers: {"Content-Type":"application/json"},
+  body: JSON.stringify({name, city, startDate, endDate})
+});
+
+const text = await res.text();
+let result;
+try {
+  result = JSON.parse(text);
+} catch(e) {
+  alert("응답이 JSON이 아닙니다: " + text);
+  return;
+}
+alert(result.message || "저장 완료");
     ['name','city','startDate','endDate'].forEach(id=>document.getElementById(id).value=id.includes('Date')?today:'');
     loadTrips(document.getElementById('startDateFilter').value, document.getElementById('endDateFilter').value);
   }catch(e){ alert("저장 실패: "+e.message); }
@@ -86,3 +98,4 @@ loadTrips(today,today);
 </script>
 </body>
 </html>
+
