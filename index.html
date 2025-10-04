@@ -3,62 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <title>BAI 25-2 MAP</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <style>
   html, body { height: 100%; margin:0; padding:0; font-family: Arial; }
   #map { height: 100%; width: 100%; }
 
-  /* 기본 컨트롤 박스 */
+  /* --- 컨트롤 패널 --- */
   .controls {
     position: absolute; top: 10px; left: 10px;
     background: rgba(255,255,255,0.95); padding: 8px;
-    border-radius: 8px; z-index: 1000;
+    border-radius: 5px; z-index: 1000;
     box-shadow: 0 2px 6px rgba(0,0,0,0.3);
     max-width: 260px;
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    cursor: grab;
   }
-  .controls input, .controls button { padding:5px; font-size:14px; margin-right:5px; margin-top:3px; }
-  .controls hr { margin:6px 0; }
-
-  /* ✅ 모바일: 슬라이드 업 패널로 표시 */
-  @media (max-width: 768px) {
-    .controls {
-      top: auto;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      width: 100%;
-      max-width: none;
-      border-radius: 16px 16px 0 0;
-      transform: translateY(100%);
-      opacity: 0;
-      box-shadow: 0 -2px 8px rgba(0,0,0,0.25);
-    }
-    .controls.active {
-      transform: translateY(0);
-      opacity: 1;
-    }
-
-    /* 오픈 버튼 (FAB) */
-    #fab {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      border: none;
-      background-color: #0078ff;
-      color: white;
-      font-size: 26px;
-      cursor: pointer;
-      z-index: 1100;
-      box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-    }
-    #fab:hover { background-color: #005fd4; }
+  .controls input, .controls button {
+    padding:5px; font-size:14px; margin-right:5px; margin-top:2px;
   }
+  .controls hr { margin:5px 0; }
 
-  /* ✅ 줌 버튼 오른쪽 위로 이동 */
+  /* --- 줌 버튼 오른쪽 위 --- */
   .leaflet-control-zoom {
     position: absolute !important;
     right: 10px !important;
@@ -67,16 +32,40 @@
     bottom: auto !important;
     z-index: 1001 !important;
   }
+  .leaflet-control-zoom a {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+  }
+
+  /* --- 모바일 슬라이드 패널 --- */
+  @media (max-width: 600px) {
+    .controls {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      max-width: 100%;
+      border-radius: 12px 12px 0 0;
+      transform: translateY(60%);
+      transition: transform 0.3s ease;
+      font-size: 16px;
+      padding: 12px;
+    }
+    .controls.open {
+      transform: translateY(0%);
+    }
+    .controls input, .controls button {
+      font-size: 16px;
+      padding: 8px;
+      margin-top: 4px;
+    }
+  }
 </style>
 </head>
-
 <body>
-<div id="map"></div>
 
-<!-- ✅ 모바일용 FAB -->
-<button id="fab" onclick="toggleControls()" style="display:none;">☰</button>
-
-<div class="controls" id="controls">
+<div class="controls">
   <h4>등록</h4>
   <input type="text" id="name" placeholder="이름"><br>
   <input type="text" id="city" placeholder="도시"><br>
@@ -90,6 +79,8 @@
   <button id="filterBtn">조회</button>
 </div>
 
+<div id="map"></div>
+
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
@@ -98,7 +89,7 @@ const map = L.map('map').setView([36.5,127.8],7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 const markers = L.layerGroup().addTo(map);
 const cityCache = {};
-const WORKER_URL = "https://curly-sun-6201.apineluk.workers.dev/";
+const WORKER_URL = "https://curly-sun-6201.apineluk.workers.dev/"; // Worker URL
 const SHEET_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
 
 const today = new Date().toISOString().split('T')[0];
@@ -107,18 +98,15 @@ document.getElementById('endDate').value = today;
 document.getElementById('startDateFilter').value = today;
 document.getElementById('endDateFilter').value = today;
 
-// ✅ 모바일이면 FAB 표시
-if (window.innerWidth <= 768) {
-  document.getElementById('fab').style.display = 'block';
-}
+// --- 모바일 슬라이드 토글 ---
+const controls = document.querySelector('.controls');
+controls.addEventListener('click', ()=>{
+  if(window.innerWidth <= 600){
+    controls.classList.toggle('open');
+  }
+});
 
-// ✅ 패널 열기/닫기 함수
-function toggleControls() {
-  const panel = document.getElementById('controls');
-  panel.classList.toggle('active');
-}
-
-// --- Geocoding ---
+// Geocode city
 async function geocode(city){
   if(cityCache[city]) return cityCache[city];
   const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ", South Korea")}`);
@@ -137,7 +125,7 @@ function isRangeOverlap(tripStart, tripEnd, filterStart, filterEnd){
   return te >= fs && ts <= fe;
 }
 
-// --- Load trips to map ---
+// Load trips to map
 async function loadTrips(filterStart, filterEnd){
   markers.clearLayers();
   Papa.parse(SHEET_CSV,{
@@ -162,7 +150,7 @@ async function loadTrips(filterStart, filterEnd){
   });
 }
 
-// --- Submit ---
+// Submit
 document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('name').value.trim();
   const city = document.getElementById('city').value.trim();
@@ -181,27 +169,27 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
     catch(e){ result = {message:"저장 완료"}; }
 
     alert(result.message || "저장 완료");
+
     document.getElementById('name').value='';
     document.getElementById('city').value='';
     document.getElementById('startDate').value=today;
     document.getElementById('endDate').value=today;
+
     loadTrips(document.getElementById('startDateFilter').value, document.getElementById('endDateFilter').value);
   }catch(e){
     alert("저장 실패: "+e.message);
   }
 });
 
-// --- Filter ---
+// Filter
 document.getElementById('filterBtn').addEventListener('click', ()=>{
   const start = document.getElementById('startDateFilter').value;
   const end = document.getElementById('endDateFilter').value;
   loadTrips(start,end);
-  if (window.innerWidth <= 768) toggleControls(); // 모바일이면 닫기
 });
 
-// --- 초기 로드 ---
+// 초기 로드
 loadTrips(today,today);
 </script>
-
 </body>
 </html>
