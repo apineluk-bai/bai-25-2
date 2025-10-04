@@ -7,7 +7,6 @@
 <style>
   html, body { height: 100%; margin:0; padding:0; font-family: Arial; }
   #map { height: 100%; width: 100%; }
-
   .controls {
     position: absolute; top: 10px; left: 10px;
     background: rgba(255,255,255,0.95); padding: 8px;
@@ -41,13 +40,12 @@
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <script>
-const map = L.map('map').setView([36.5,127.8], 7);
+const map = L.map('map').setView([36.5,127.8],7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 const markers = L.layerGroup().addTo(map);
 const cityCache = {};
-
+const WORKER_URL = "https://curly-sun-6201.apineluk.workers.dev/"; // Worker URL
 const SHEET_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw1nBAbcx0S6gVJ8dXGkZP0xxCsgHNtlY9p7j26gmDNEs0nLlqEJFpO6UBV4y1Jr-BUzw/exec";
 
 const today = new Date().toISOString().split('T')[0];
 document.getElementById('startDate').value = today;
@@ -55,7 +53,7 @@ document.getElementById('endDate').value = today;
 document.getElementById('startDateFilter').value = today;
 document.getElementById('endDateFilter').value = today;
 
-// Leaflet 전용 geocode
+// Geocode city
 async function geocode(city){
   if(cityCache[city]) return cityCache[city];
   const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ", South Korea")}`);
@@ -68,81 +66,80 @@ async function geocode(city){
   return null;
 }
 
-// 날짜 범위 겹침 확인
 function isRangeOverlap(tripStart, tripEnd, filterStart, filterEnd){
   const ts = new Date(tripStart), te = new Date(tripEnd);
   const fs = new Date(filterStart), fe = new Date(filterEnd);
   return te >= fs && ts <= fe;
 }
 
-// 지도에 출장 표시
+// Load trips to map
 async function loadTrips(filterStart, filterEnd){
   markers.clearLayers();
-  Papa.parse(SHEET_CSV, {
-    download: true,
-    header: true,
+  Papa.parse(SHEET_CSV,{
+    download:true,
+    header:true,
     complete: async function(results){
       const trips = results.data.filter(r=>r.name && r.city && r.startDate && r.endDate)
-        .filter(t=>isRangeOverlap(t.startDate, t.endDate, filterStart, filterEnd));
+        .filter(t=>isRangeOverlap(t.startDate,t.endDate,filterStart,filterEnd));
 
       const cityMap = {};
       trips.forEach(t=>{
-        if(!cityMap[t.city]) cityMap[t.city] = [];
+        if(!cityMap[t.city]) cityMap[t.city]=[];
         cityMap[t.city].push(t.name);
       });
 
       for(const city in cityMap){
         const coords = await geocode(city);
-        if(coords){
-          L.marker(coords).addTo(markers)
-            .bindPopup(`<b>${city}</b><br>${cityMap[city].join("<br>")}`);
-        }
+        if(coords) L.marker(coords).addTo(markers)
+          .bindPopup(`<b>${city}</b><br>${cityMap[city].join("<br>")}`);
       }
     }
   });
 }
 
-// 등록 버튼
+// Submit
 document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('name').value.trim();
   const city = document.getElementById('city').value.trim();
   const startDate = document.getElementById('startDate').value;
   const endDate = document.getElementById('endDate').value;
-
-  if(!name || !city || !startDate || !endDate){
-    alert("모든 항목을 입력해주세요.");
-    return;
-  }
+  if(!name || !city || !startDate || !endDate){ alert("모든 항목 입력"); return; }
 
   try{
-    const res = await fetch(SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({name, city, startDate, endDate})
+    const res = await fetch(WORKER_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({name,city,startDate,endDate})
     });
-    alert("저장 완료");
+    // JSON 응답 확인
+    let result;
+    try { result = await res.json(); } 
+    catch(e){ /* JSON이 아니어도 무시 */ result = {message:"저장 완료"}; }
 
-    document.getElementById('name').value = '';
-    document.getElementById('city').value = '';
-    document.getElementById('startDate').value = today;
-    document.getElementById('endDate').value = today;
+    alert(result.message || "저장 완료");
 
+    // 입력 초기화
+    document.getElementById('name').value='';
+    document.getElementById('city').value='';
+    document.getElementById('startDate').value=today;
+    document.getElementById('endDate').value=today;
+
+    // 지도 갱신
     loadTrips(document.getElementById('startDateFilter').value, document.getElementById('endDateFilter').value);
-  } catch(e){
-    console.error(e);
-    alert("저장 실패: 서버에 접근할 수 없습니다.");
+  }catch(e){
+    alert("저장 실패: "+e.message);
   }
 });
 
-// 조회 버튼
+// Filter
 document.getElementById('filterBtn').addEventListener('click', ()=>{
   const start = document.getElementById('startDateFilter').value;
   const end = document.getElementById('endDateFilter').value;
-  loadTrips(start, end);
+  loadTrips(start,end);
 });
 
 // 초기 로드
-loadTrips(today, today);
+loadTrips(today,today);
 </script>
 
 </body>
