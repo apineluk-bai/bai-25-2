@@ -20,7 +20,16 @@ label{font-size:13px;}
 </head>
 <body>
 
-<div class="panel">
+<!-- 로그인 -->
+<div id="loginPanel" class="panel">
+  <h3>로그인 / 가입</h3>
+  <input type="text" id="loginName" placeholder="이름">
+  <input type="text" id="loginCode" placeholder="개인 코드 (신규 가입 시 공백)">
+  <button id="loginBtn">로그인 / 가입</button>
+</div>
+
+<!-- 메인 UI -->
+<div id="mainPanel" class="panel" style="display:none;">
   <div class="panel-header">
     <button id="tabRegister" class="active">등록</button>
     <button id="tabFilter">조회</button>
@@ -28,7 +37,7 @@ label{font-size:13px;}
   </div>
 
   <div class="panel-content active" id="registerContent">
-    <input type="text" id="name" placeholder="이름">
+    <input type="text" id="name" readonly>
     <input type="text" id="city" placeholder="도시">
     <label>시작일: <input type="date" id="startDate"></label>
     <label>종료일: <input type="date" id="endDate"></label>
@@ -42,37 +51,21 @@ label{font-size:13px;}
     <div id="filterResults"></div>
   </div>
 
-  <div class="panel-content" id="myTripsContent">내 출장 불러오는 중...</div>
+  <div class="panel-content" id="myTripsContent"></div>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-const WORKER_URL = "https://curly-sun-6201.apineluk.workers.dev/";
+const WORKER_URL = "YOUR_WORKER_URL";
 const today = new Date().toISOString().split('T')[0];
-
 document.getElementById('startDate').value = today;
 document.getElementById('endDate').value = today;
 document.getElementById('startDateFilter').value = today;
 document.getElementById('endDateFilter').value = today;
 
-// 탭 전환
-const tabs = ["tabRegister","tabFilter","tabMyTrips"];
-tabs.forEach(id => {
-  document.getElementById(id).addEventListener("click", ()=> {
-    tabs.forEach(i=>{
-      document.getElementById(i).classList.remove("active");
-      const el = document.getElementById(i.replace("tab","")+"Content");
-      if(el) el.classList.remove("active");
-    });
-    document.getElementById(id).classList.add("active");
-    const el = document.getElementById(id.replace("tab","")+"Content");
-    if(el) el.classList.add("active");
-  });
-});
-
-// 지도
+// 지도 초기화
 const map = L.map('map',{zoomControl:true}).setView([36.5,127.8],7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 const markers = L.layerGroup().addTo(map);
@@ -85,26 +78,75 @@ async function geocode(city){
   return null;
 }
 
+// 로그인/가입
+document.getElementById('loginBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('loginName').value.trim();
+  let code = document.getElementById('loginCode').value.trim();
+  if(!name){ alert("이름 입력"); return; }
+
+  if(!code){
+    // 신규 가입
+    const res = await fetch(WORKER_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'registerCode', name})
+    });
+    const data = await res.json();
+    if(data.success){ code=data.code; alert("가입 완료! 개인 코드: "+code); }
+    else { alert("가입 실패"); return; }
+  }
+
+  // 로그인 확인
+  const res2 = await fetch(WORKER_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'login', name, code})
+  });
+  const loginData = await res2.json();
+  if(loginData.success){
+    localStorage.setItem("userCode", code);
+    localStorage.setItem("userName", name);
+    document.getElementById('loginPanel').style.display='none';
+    document.getElementById('mainPanel').style.display='block';
+    document.getElementById('name').value = name;
+    loadMyTrips();
+    loadFilterResults();
+  } else alert("로그인 실패");
+});
+
+// 탭 전환
+const tabs = ["tabRegister","tabFilter","tabMyTrips"];
+tabs.forEach(id=>{
+  document.getElementById(id).addEventListener('click', ()=>{
+    tabs.forEach(i=>{
+      document.getElementById(i).classList.remove('active');
+      const content = document.getElementById(i.replace('tab','')+'Content');
+      if(content) content.classList.remove('active');
+    });
+    document.getElementById(id).classList.add('active');
+    const content = document.getElementById(id.replace('tab','')+'Content');
+    if(content) content.classList.add('active');
+  });
+});
+
 // 등록
 document.getElementById('submitBtn').addEventListener('click', async ()=>{
-  const name = document.getElementById('name').value.trim();
   const city = document.getElementById('city').value.trim();
   const startDate = document.getElementById('startDate').value;
   const endDate = document.getElementById('endDate').value;
-  if(!name||!city||!startDate||!endDate){ alert("모든 항목 입력"); return; }
+  const name = localStorage.getItem("userName");
+  const code = localStorage.getItem("userCode");
+  if(!city||!startDate||!endDate){ alert("모든 항목 입력"); return; }
 
   const res = await fetch(WORKER_URL,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'registerCode', name, city, startDate, endDate})
+    body:JSON.stringify({action:'addTrip', name, code, city, startDate, endDate})
   });
   const data = await res.json();
-  if(data.success){
-    alert(`등록 완료! 개인 코드: ${data.code}`);
-    localStorage.setItem("userCode", data.code);
-    loadMyTrips();
-    loadFilterResults();
-  } else alert("등록 실패");
+  alert(data.message || "등록 완료");
+  loadMyTrips();
+  loadFilterResults();
 });
 
 // 조회
@@ -114,13 +156,11 @@ async function loadFilterResults(){
   const s = document.getElementById('startDateFilter').value;
   const e = document.getElementById('endDateFilter').value;
   const code = localStorage.getItem("userCode");
-  if(!code) return;
 
-  const res = await fetch(WORKER_URL + '?action=getData&code='+code);
+  const res = await fetch(WORKER_URL+`?action=getData&code=${code}`);
   const trips = await res.json();
   const filtered = trips.filter(t=>t.startDate<=e && t.endDate>=s);
-  const container = document.getElementById('filterResults');
-  container.innerHTML = filtered.map(t=>`<div>${t.name} - ${t.city} (${t.startDate}~${t.endDate})</div>`).join('');
+  document.getElementById('filterResults').innerHTML = filtered.map(t=>`<div>${t.name} - ${t.city} (${t.startDate}~${t.endDate})</div>`).join('');
 
   markers.clearLayers();
   for(const t of filtered){
@@ -134,17 +174,13 @@ async function loadFilterResults(){
 // 내 출장
 async function loadMyTrips(){
   const code = localStorage.getItem("userCode");
-  if(!code) return;
-  const res = await fetch(WORKER_URL + '?action=getData&code='+code);
+  const res = await fetch(WORKER_URL+`?action=getData&code=${code}`);
   const trips = await res.json();
   const container = document.getElementById('myTripsContent');
   if(trips.length===0) container.innerHTML="등록된 출장 없음";
   else container.innerHTML = trips.map(t=>`<div style="border-bottom:1px solid #ccc;padding:4px 0;"><b>${t.city}</b> (${t.startDate}~${t.endDate})</div>`).join('');
 }
 
-// 초기 로드
-loadMyTrips();
-loadFilterResults();
 </script>
 </body>
 </html>
