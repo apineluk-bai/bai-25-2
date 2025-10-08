@@ -20,7 +20,6 @@ label{font-size:13px;}
 </head>
 <body>
 
-<!-- 로그인 -->
 <div id="loginPanel" class="panel">
   <h3>로그인 / 가입</h3>
   <input type="text" id="loginName" placeholder="이름">
@@ -28,7 +27,6 @@ label{font-size:13px;}
   <button id="loginBtn">로그인 / 가입</button>
 </div>
 
-<!-- 메인 UI -->
 <div id="mainPanel" class="panel" style="display:none;">
   <div class="panel-header">
     <button id="tabRegister" class="active">등록</button>
@@ -55,7 +53,6 @@ label{font-size:13px;}
 </div>
 
 <div id="map"></div>
-
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
 const WORKER_URL = "https://curly-sun-6201.apineluk.workers.dev";
@@ -65,11 +62,11 @@ document.getElementById('endDate').value = today;
 document.getElementById('startDateFilter').value = today;
 document.getElementById('endDateFilter').value = today;
 
-// 지도 초기화
 const map = L.map('map',{zoomControl:true}).setView([36.5,127.8],7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 const markers = L.layerGroup().addTo(map);
 const cityCache={};
+
 async function geocode(city){
   if(cityCache[city]) return cityCache[city];
   const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city+", South Korea")}`);
@@ -78,30 +75,20 @@ async function geocode(city){
   return null;
 }
 
-// 로그인/가입
+// 로그인 / 가입
 document.getElementById('loginBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('loginName').value.trim();
   let code = document.getElementById('loginCode').value.trim();
   if(!name){ alert("이름 입력"); return; }
 
   if(!code){
-    // 신규 가입
-    const res = await fetch(WORKER_URL,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'registerCode', name})
-    });
+    const res = await fetch(WORKER_URL,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'registerCode',name})});
     const data = await res.json();
-    if(data.success){ code=data.code; alert("가입 완료! 개인 코드: "+code); }
+    if(data.success){ code=data.code; alert("가입 완료! 개인 코드:"+code);}
     else { alert("가입 실패"); return; }
   }
 
-  // 로그인 확인
-  const res2 = await fetch(WORKER_URL,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'login', name, code})
-  });
+  const res2 = await fetch(WORKER_URL,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'login',name,code})});
   const loginData = await res2.json();
   if(loginData.success){
     localStorage.setItem("userCode", code);
@@ -129,7 +116,7 @@ tabs.forEach(id=>{
   });
 });
 
-// 등록
+// 출장 등록
 document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const city = document.getElementById('city').value.trim();
   const startDate = document.getElementById('startDate').value;
@@ -138,11 +125,7 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const code = localStorage.getItem("userCode");
   if(!city||!startDate||!endDate){ alert("모든 항목 입력"); return; }
 
-  const res = await fetch(WORKER_URL,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'addTrip', name, code, city, startDate, endDate})
-  });
+  const res = await fetch(WORKER_URL,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'addTrip',name,code,city,startDate,endDate})});
   const data = await res.json();
   alert(data.message || "등록 완료");
   loadMyTrips();
@@ -150,22 +133,21 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
 });
 
 // 조회
-document.getElementById('filterBtn').addEventListener('click', ()=>{ loadFilterResults(); });
+document.getElementById('filterBtn').addEventListener('click',()=>{ loadFilterResults(); });
 
 async function loadFilterResults(){
-  const s = document.getElementById('startDateFilter').value;
-  const e = document.getElementById('endDateFilter').value;
-  const code = localStorage.getItem("userCode");
-
-  const res = await fetch(WORKER_URL+`?action=getData&code=${code}`);
-  const trips = await res.json();
-  const filtered = trips.filter(t=>t.startDate<=e && t.endDate>=s);
-  document.getElementById('filterResults').innerHTML = filtered.map(t=>`<div>${t.name} - ${t.city} (${t.startDate}~${t.endDate})</div>`).join('');
+  const s=document.getElementById('startDateFilter').value;
+  const e=document.getElementById('endDateFilter').value;
+  const code=localStorage.getItem("userCode");
+  const res=await fetch(WORKER_URL+`?action=getData&code=${code}`);
+  const trips=await res.json();
+  const filtered=trips.filter(t=>t.startDate<=e && t.endDate>=s);
+  document.getElementById('filterResults').innerHTML=filtered.map(t=>`<div>${t.name} - ${t.city} (${t.startDate}~${t.endDate})</div>`).join('');
 
   markers.clearLayers();
   for(const t of filtered){
     if(t.city){
-      const coords = await geocode(t.city);
+      const coords=await geocode(t.city);
       if(coords) L.marker(coords).addTo(markers).bindPopup(`<b>${t.name}</b><br>${t.city}<br>${t.startDate}~${t.endDate}`);
     }
   }
@@ -173,15 +155,13 @@ async function loadFilterResults(){
 
 // 내 출장
 async function loadMyTrips(){
-  const code = localStorage.getItem("userCode");
-  const res = await fetch(WORKER_URL+`?action=getData&code=${code}`);
-  const trips = await res.json();
-  const container = document.getElementById('myTripsContent');
+  const code=localStorage.getItem("userCode");
+  const res=await fetch(WORKER_URL+`?action=getData&code=${code}`);
+  const trips=await res.json();
+  const container=document.getElementById('myTripsContent');
   if(trips.length===0) container.innerHTML="등록된 출장 없음";
-  else container.innerHTML = trips.map(t=>`<div style="border-bottom:1px solid #ccc;padding:4px 0;"><b>${t.city}</b> (${t.startDate}~${t.endDate})</div>`).join('');
+  else container.innerHTML=trips.map(t=>`<div style="border-bottom:1px solid #ccc;padding:4px 0;"><b>${t.city}</b> (${t.startDate}~${t.endDate})</div>`).join('');
 }
-
 </script>
 </body>
 </html>
-
