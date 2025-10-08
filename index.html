@@ -53,15 +53,18 @@ label{font-size:13px;}
 </div>
 
 <div id="map"></div>
+
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
 const WORKER_URL = "https://curly-sun-6201.apineluk.workers.dev";
-const today = new Date().toISOString().split('T')[0];
-document.getElementById('startDate').value = today;
-document.getElementById('endDate').value = today;
-document.getElementById('startDateFilter').value = today;
-document.getElementById('endDateFilter').value = today;
 
+// 기본 날짜 세팅
+const today = new Date().toISOString().split('T')[0];
+["startDate","endDate","startDateFilter","endDateFilter"].forEach(id=>{
+  document.getElementById(id).value = today;
+});
+
+// 지도 초기화
 const map = L.map('map',{zoomControl:true}).setView([36.5,127.8],7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 const markers = L.layerGroup().addTo(map);
@@ -71,7 +74,7 @@ async function geocode(city){
   if(cityCache[city]) return cityCache[city];
   const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city+", South Korea")}`);
   const data = await res.json();
-  if(data.length>0){ cityCache[city]=[parseFloat(data[0].lat),parseFloat(data[0].lon)]; return cityCache[city]; }
+  if(data.length>0){ cityCache[city]=[+data[0].lat,+data[0].lon]; return cityCache[city]; }
   return null;
 }
 
@@ -84,7 +87,7 @@ document.getElementById('loginBtn').addEventListener('click', async ()=>{
   if(!code){
     const res = await fetch(WORKER_URL,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'registerCode',name})});
     const data = await res.json();
-    if(data.success){ code=data.code; alert("가입 완료! 개인 코드:"+code);}
+    if(data.success){ code=data.code; alert("가입 완료! 개인 코드:"+code); }
     else { alert("가입 실패"); return; }
   }
 
@@ -102,38 +105,37 @@ document.getElementById('loginBtn').addEventListener('click', async ()=>{
 });
 
 // 탭 전환
-const tabs = ["tabRegister","tabFilter","tabMyTrips"];
-tabs.forEach(id=>{
+["tabRegister","tabFilter","tabMyTrips"].forEach(id=>{
   document.getElementById(id).addEventListener('click', ()=>{
-    tabs.forEach(i=>{
+    ["tabRegister","tabFilter","tabMyTrips"].forEach(i=>{
       document.getElementById(i).classList.remove('active');
-      const content = document.getElementById(i.replace('tab','')+'Content');
-      if(content) content.classList.remove('active');
+      const c=document.getElementById(i.replace('tab','')+'Content');
+      if(c) c.classList.remove('active');
     });
     document.getElementById(id).classList.add('active');
-    const content = document.getElementById(id.replace('tab','')+'Content');
-    if(content) content.classList.add('active');
+    const c=document.getElementById(id.replace('tab','')+'Content');
+    if(c) c.classList.add('active');
   });
 });
 
 // 출장 등록
 document.getElementById('submitBtn').addEventListener('click', async ()=>{
-  const city = document.getElementById('city').value.trim();
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
-  const name = localStorage.getItem("userName");
-  const code = localStorage.getItem("userCode");
+  const city=document.getElementById('city').value.trim();
+  const startDate=document.getElementById('startDate').value;
+  const endDate=document.getElementById('endDate').value;
+  const name=localStorage.getItem("userName");
+  const code=localStorage.getItem("userCode");
   if(!city||!startDate||!endDate){ alert("모든 항목 입력"); return; }
 
-  const res = await fetch(WORKER_URL,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'addTrip',name,code,city,startDate,endDate})});
-  const data = await res.json();
+  const res=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'addTrip',name,code,city,startDate,endDate})});
+  const data=await res.json();
   alert(data.message || "등록 완료");
   loadMyTrips();
   loadFilterResults();
 });
 
 // 조회
-document.getElementById('filterBtn').addEventListener('click',()=>{ loadFilterResults(); });
+document.getElementById('filterBtn').addEventListener('click', loadFilterResults);
 
 async function loadFilterResults(){
   const s=document.getElementById('startDateFilter').value;
@@ -143,7 +145,6 @@ async function loadFilterResults(){
   const trips=await res.json();
   const filtered=trips.filter(t=>t.startDate<=e && t.endDate>=s);
   document.getElementById('filterResults').innerHTML=filtered.map(t=>`<div>${t.name} - ${t.city} (${t.startDate}~${t.endDate})</div>`).join('');
-
   markers.clearLayers();
   for(const t of filtered){
     if(t.city){
@@ -153,7 +154,6 @@ async function loadFilterResults(){
   }
 }
 
-// 내 출장
 async function loadMyTrips(){
   const code=localStorage.getItem("userCode");
   const res=await fetch(WORKER_URL+`?action=getData&code=${code}`);
@@ -162,17 +162,15 @@ async function loadMyTrips(){
   if(trips.length===0) container.innerHTML="등록된 출장 없음";
   else container.innerHTML=trips.map(t=>`<div style="border-bottom:1px solid #ccc;padding:4px 0;"><b>${t.city}</b> (${t.startDate}~${t.endDate})</div>`).join('');
 }
-<!-- ✅ PWA service worker 등록 코드 -->
-<script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("service-worker.js")
-      .then(reg => console.log("✅ Service Worker registered:", reg.scope))
-      .catch(err => console.error("❌ Service Worker registration failed:", err));
+
+// PWA 등록
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("service-worker.js")
+    .then(()=>console.log("✅ Service Worker 등록 완료"))
+    .catch(e=>console.error("❌ Service Worker 실패",e));
   });
 }
 </script>
 </body>
 </html>
-
