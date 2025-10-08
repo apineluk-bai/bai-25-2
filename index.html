@@ -17,7 +17,6 @@ html,body{height:100%;margin:0;font-family:Arial;}
 <body>
 <div id="map"></div>
 
-<!-- 로그인 패널 -->
 <div id="loginPanel">
 <h2>개인 코드 로그인</h2>
 <input type="text" id="loginCode" placeholder="코드를 입력하거나 비워두세요">
@@ -29,7 +28,7 @@ html,body{height:100%;margin:0;font-family:Arial;}
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-const SCRIPT_URL = "👉Apps_Script_웹앱_URL👈"; // Apps Script URL 입력
+const SCRIPT_URL = "📌Cloudflare_Worker_URL_입력";
 
 async function init() {
   const storedCode = localStorage.getItem('userCode');
@@ -39,66 +38,60 @@ async function init() {
   }
 }
 
-// 로그인 버튼 클릭 이벤트
 document.getElementById('loginBtn').addEventListener('click', async ()=>{
   const inputCode = document.getElementById('loginCode').value.trim().toUpperCase();
   if(inputCode){
-    // 기존 코드로 로그인 시도
-    const res = await fetch(`${SCRIPT_URL}?action=login&code=${inputCode}`);
-    const data = await res.json();
-    if(data.success){
-      localStorage.setItem('userCode', inputCode);
-      document.getElementById('loginPanel').style.display='none';
-      await loadMap(inputCode);
-      return;
-    } else {
-      alert("등록되지 않은 코드입니다. 새 코드가 발급됩니다.");
-    }
+    try{
+      const res = await fetch(`${SCRIPT_URL}?action=login&code=${inputCode}`);
+      const data = await res.json();
+      if(data.success){
+        localStorage.setItem('userCode', inputCode);
+        document.getElementById('loginPanel').style.display='none';
+        await loadMap(inputCode);
+        return;
+      } else alert("등록되지 않은 코드입니다. 새 코드 발급");
+    }catch(e){ alert("로그인 오류:"+e.message); return; }
   }
-  // 입력이 없거나 로그인 실패 시 새 코드 발급
   await registerNewCode();
 });
 
-// 새 코드 발급
 async function registerNewCode(){
-  const res = await fetch(`${SCRIPT_URL}?action=registerCode`);
-  const data = await res.json();
-  if(data.success){
-    localStorage.setItem('userCode', data.code);
-    alert(`당신의 개인코드: ${data.code}\n다른 기기에서도 이 코드를 입력하면 로그인할 수 있습니다.`);
-    document.getElementById('loginPanel').style.display='none';
-    await loadMap(data.code);
-  } else alert('코드 등록 오류');
+  try{
+    const res = await fetch(`${SCRIPT_URL}?action=registerCode`);
+    const data = await res.json();
+    if(data.success){
+      localStorage.setItem('userCode', data.code);
+      alert(`당신의 개인코드: ${data.code}`);
+      document.getElementById('loginPanel').style.display='none';
+      await loadMap(data.code);
+    }
+  }catch(e){ alert("코드 등록 오류:"+e.message); }
 }
 
-// 지도 로드
 async function loadMap(code){
   const map = L.map('map').setView([36.5,127.8],7);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-  
-  const res = await fetch(`${SCRIPT_URL}?action=getData&code=${code}`);
-  const data = await res.json();
 
-  for(const item of data){
-    if(item.lat && item.lng){
-      L.marker([item.lat,item.lng]).addTo(map)
-        .bindPopup(`<b>${item.name}</b><br>${item.city}<br>${item.startDate} ~ ${item.endDate}`);
+  try{
+    const res = await fetch(`${SCRIPT_URL}?action=getData&code=${code}`);
+    const data = await res.json();
+    for(const item of data){
+      if(item.lat && item.lng){
+        L.marker([item.lat,item.lng]).addTo(map)
+          .bindPopup(`<b>${item.name}</b><br>${item.city}<br>${item.startDate} ~ ${item.endDate}`);
+      }
     }
-  }
+  }catch(e){ console.error(e); }
 
   const myCodeDiv = document.getElementById('myCode');
   myCodeDiv.innerText = `내 코드: ${code}`;
   myCodeDiv.style.display='block';
 }
 
-// 내 코드 확인 버튼
 document.getElementById('showCodeBtn').addEventListener('click', ()=>{
   const code = localStorage.getItem('userCode');
-  if(code){
-    alert(`당신의 개인 코드: ${code}`);
-  } else {
-    alert("코드가 없습니다. 새로 로그인하거나 등록하세요.");
-  }
+  if(code) alert(`내 코드: ${code}`);
+  else alert("코드 없음, 새로 로그인하세요");
 });
 
 init();
