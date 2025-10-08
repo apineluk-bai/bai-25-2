@@ -162,6 +162,17 @@ async function loadMyTrips(){
   if(trips.length===0) container.innerHTML="등록된 출장 없음";
   else container.innerHTML=trips.map(t=>`<div style="border-bottom:1px solid #ccc;padding:4px 0;"><b>${t.city}</b> (${t.startDate}~${t.endDate})</div>`).join('');
 }
+<!-- ✅ PWA service worker 등록 코드 -->
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("service-worker.js")
+      .then(reg => console.log("✅ Service Worker registered:", reg.scope))
+      .catch(err => console.error("❌ Service Worker registration failed:", err));
+  });
+}
 </script>
 </body>
 </html>
+
