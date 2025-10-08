@@ -39,7 +39,7 @@ async function init() {
 }
 
 document.getElementById('loginBtn').addEventListener('click', async ()=>{
-  const inputCode = document.getElementById('loginCode').value.trim().toUpperCase();
+  const inputCode = document.getElementById('loginCode').value.trim();
   if(inputCode){
     try{
       const res = await fetch(`${SCRIPT_URL}?action=login&code=${inputCode}`);
@@ -71,17 +71,6 @@ async function registerNewCode(){
 async function loadMap(code){
   const map = L.map('map').setView([36.5,127.8],7);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-  try{
-    const res = await fetch(`${SCRIPT_URL}?action=getData&code=${code}`);
-    const data = await res.json();
-    for(const item of data){
-      if(item.lat && item.lng){
-        L.marker([item.lat,item.lng]).addTo(map)
-          .bindPopup(`<b>${item.name}</b><br>${item.city}<br>${item.startDate} ~ ${item.endDate}`);
-      }
-    }
-  }catch(e){ console.error(e); }
 
   const myCodeDiv = document.getElementById('myCode');
   myCodeDiv.innerText = `내 코드: ${code}`;
