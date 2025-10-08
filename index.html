@@ -5,41 +5,15 @@
 <title>출장 공유 MAP</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <style>
-html, body { height:100%; margin:0; font-family:Arial; }
-#map { height:100%; width:100%; }
-
-/* 패널 고정 */
-#loginPanel {
-  position:absolute;
-  top:10px; left:10px;
-  width:260px;
-  background:white;
-  padding:15px;
-  border-radius:10px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-  z-index:1000;
-}
-#loginPanel input, #loginPanel button {
-  width:100%;
-  padding:8px;
-  margin:6px 0;
-  font-size:14px;
-  box-sizing:border-box;
-  text-align:center;
-}
-#myCode {
-  position:absolute;
-  bottom:10px;
-  right:10px;
-  background:rgba(255,255,255,0.8);
-  padding:10px 15px;
-  border-radius:10px;
-  font-size:14px;
-}
+html,body{height:100%;margin:0;font-family:Arial;} 
+#map{height:60%;width:100%;} 
+#loginPanel, #userPanel{padding:20px;}
+#loginPanel input, #loginPanel button{font-size:16px;margin:5px;}
+#myCode{margin-top:10px;font-weight:bold;}
+#tripList div{margin:3px 0;}
 </style>
 </head>
 <body>
-<div id="map"></div>
 
 <div id="loginPanel">
   <h3>새 코드 등록</h3>
@@ -50,81 +24,95 @@ html, body { height:100%; margin:0; font-family:Arial; }
   <input type="text" id="loginCode" placeholder="기존 코드 입력">
   <button id="loginBtn">로그인</button>
 
-  <button id="showCodeBtn">내 코드 확인</button>
+  <div id="myCode"></div>
 </div>
 
-<div id="myCode"></div>
+<div id="userPanel" style="display:none;">
+  <h3>환영합니다!</h3>
+  <div id="tripList"></div>
+  <div id="map"></div>
+</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-const SCRIPT_URL = "https://curly-sun-6201.apineluk.workers.dev";
+const SCRIPT_URL = "https://curly-sun-6201.apineluk.workers.dev"; // Cloudflare Worker URL
 
-// 지도 초기화
-let map = L.map('map').setView([36.5,127.8],7);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-// 지도에 마커 추가
 async function loadMap(code){
+  const map = L.map('map').setView([36.5,127.8],7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
   try{
     const res = await fetch(`${SCRIPT_URL}?action=getData&code=${code}`);
     const data = await res.json();
-    for(const item of data){
+    data.forEach(item=>{
       if(item.lat && item.lng){
         L.marker([item.lat,item.lng]).addTo(map)
           .bindPopup(`<b>${item.name}</b><br>${item.city}<br>${item.startDate} ~ ${item.endDate}`);
       }
-    }
+    });
   }catch(e){ console.error(e); }
-
-  const myCodeDiv = document.getElementById('myCode');
-  myCodeDiv.innerText = `내 코드: ${code}`;
 }
 
 // 새 코드 등록
 document.getElementById('registerBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('userName').value.trim();
-  if(!name){ alert("이름을 입력하세요"); return; }
+  if(!name){ alert("이름을 입력해주세요"); return; }
 
   try{
     const res = await fetch(`${SCRIPT_URL}?action=registerCode&name=${encodeURIComponent(name)}`);
     const data = await res.json();
     if(data.success){
       localStorage.setItem('userCode', data.code);
-      alert(`등록 완료! 개인 코드: ${data.code}\n다른 기기에서도 사용 가능`);
-      await loadMap(data.code);
+      document.getElementById('myCode').innerText = `내 코드: ${data.code}`;
+      alert(`등록 완료! 개인 코드: ${data.code}`);
+      showUserPanel(data.code);
+    }else{
+      alert("코드 등록 실패");
     }
   }catch(e){ alert("코드 등록 오류: "+e.message); }
 });
 
 // 기존 코드 로그인
 document.getElementById('loginBtn').addEventListener('click', async ()=>{
-  const inputCode = document.getElementById('loginCode').value.trim().toUpperCase();
-  if(!inputCode){ alert("코드를 입력하세요"); return; }
+  const code = document.getElementById('loginCode').value.trim();
+  if(!code){ alert("코드를 입력해주세요"); return; }
 
   try{
-    const res = await fetch(`${SCRIPT_URL}?action=login&code=${inputCode}`);
+    const res = await fetch(`${SCRIPT_URL}?action=login&code=${encodeURIComponent(code)}`);
     const data = await res.json();
     if(data.success){
-      localStorage.setItem('userCode', inputCode);
-      alert("로그인 성공!");
-      await loadMap(inputCode);
-    } else alert("등록되지 않은 코드입니다.");
+      localStorage.setItem('userCode', code);
+      document.getElementById('myCode').innerText = `내 코드: ${code}`;
+      showUserPanel(code);
+    }else{
+      alert("등록되지 않은 코드입니다.");
+    }
   }catch(e){ alert("로그인 오류: "+e.message); }
 });
 
-// 내 코드 확인
-document.getElementById('showCodeBtn').addEventListener('click', ()=>{
-  const code = localStorage.getItem('userCode');
-  if(code) alert(`내 코드: ${code}`);
-  else alert("코드 없음, 새로 등록하거나 로그인하세요");
-});
+// 로그인 후 UI 전환 및 데이터 로드
+async function showUserPanel(code){
+  document.getElementById('loginPanel').style.display='none';
+  document.getElementById('userPanel').style.display='block';
 
-// 페이지 로드 시 기존 코드 자동 확인
+  // 출장 목록 표시
+  try{
+    const res = await fetch(`${SCRIPT_URL}?action=getData&code=${encodeURIComponent(code)}`);
+    const data = await res.json();
+    const tripListDiv = document.getElementById('tripList');
+    tripListDiv.innerHTML = "";
+    data.forEach(d=>{
+      tripListDiv.innerHTML += `<div>${d.name} - ${d.city} (${d.startDate} ~ ${d.endDate})</div>`;
+    });
+  }catch(e){ console.error(e); }
+
+  await loadMap(code);
+}
+
+// 페이지 로드 시 로컬 스토리지 확인
 window.addEventListener('load', async ()=>{
-  const storedCode = localStorage.getItem('userCode');
-  if(storedCode){
-    await loadMap(storedCode);
-  }
+  const code = localStorage.getItem('userCode');
+  if(code) showUserPanel(code);
 });
 </script>
 </body>
