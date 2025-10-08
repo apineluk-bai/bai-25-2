@@ -11,20 +11,25 @@ html,body{height:100%;margin:0;font-family:Arial;}
 #loginPanel input{font-size:18px;padding:10px;margin:10px;width:200px;text-align:center;} 
 #loginPanel button{font-size:18px;padding:10px 20px;cursor:pointer;} 
 #myCode{position:absolute;bottom:10px;right:10px;background:rgba(255,255,255,0.8);padding:10px 15px;border-radius:10px;font-size:14px;display:none;}
+#showCodeBtn{position:absolute;bottom:50px;right:10px;padding:8px 12px;z-index:1000;}
 </style>
 </head>
 <body>
 <div id="map"></div>
+
+<!-- 로그인 패널 -->
 <div id="loginPanel">
 <h2>개인 코드 로그인</h2>
 <input type="text" id="loginCode" placeholder="코드를 입력하세요">
 <button onclick="loginWithCode()">로그인</button>
 </div>
+
 <div id="myCode"></div>
+<button id="showCodeBtn">내 코드 확인</button>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-const SCRIPT_URL = "👉Apps_Script_웹앱_URL👈";
+const SCRIPT_URL = "👉Apps_Script_웹앱_URL👈"; // 여기 Apps Script URL 입력
 
 async function init() {
   const storedCode = localStorage.getItem('userCode');
@@ -36,6 +41,7 @@ async function init() {
   }
 }
 
+// 1️⃣ 새 코드 등록
 async function registerNewCode(){
   const res = await fetch(`${SCRIPT_URL}?action=registerCode`);
   const data = await res.json();
@@ -44,11 +50,10 @@ async function registerNewCode(){
     alert(`당신의 개인코드: ${data.code}\n다른 기기에서도 이 코드를 입력하면 로그인할 수 있습니다.`);
     document.getElementById('loginPanel').style.display='none';
     await loadMap(data.code);
-  } else {
-    alert('코드 등록 오류');
-  }
+  } else alert('코드 등록 오류');
 }
 
+// 2️⃣ 로그인
 async function loginWithCode(){
   const code = document.getElementById('loginCode').value.trim().toUpperCase();
   if(!code) return alert('코드를 입력하세요.');
@@ -61,6 +66,7 @@ async function loginWithCode(){
   } else alert('등록되지 않은 코드입니다.');
 }
 
+// 3️⃣ 지도 로드
 async function loadMap(code){
   const map = L.map('map').setView([36.5,127.8],7);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -79,6 +85,16 @@ async function loadMap(code){
   myCodeDiv.innerText = `내 코드: ${code}`;
   myCodeDiv.style.display='block';
 }
+
+// 4️⃣ 내 코드 확인 버튼
+document.getElementById('showCodeBtn').addEventListener('click', ()=>{
+  const code = localStorage.getItem('userCode');
+  if(code){
+    alert(`당신의 개인 코드: ${code}`);
+  } else {
+    alert("코드가 없습니다. 새로 로그인하거나 등록하세요.");
+  }
+});
 
 init();
 </script>
