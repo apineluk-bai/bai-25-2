@@ -1,65 +1,198 @@
-<input type="text" id="name" placeholder="이름">
-<input type="text" id="code" placeholder="코드 (있으면)">
-<button id="loginBtn">로그인 / 새 코드 발급</button>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>출장 공유 MAP</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<style>
+  html, body { height: 100%; margin:0; font-family: Arial; }
+  #map { height: 100%; width: 100%; }
 
-<div id="tripPanel" style="display:none;">
-  <input type="text" id="city">
-  <input type="date" id="startDate">
-  <input type="date" id="endDate">
-  <button id="addTripBtn">등록 / 수정</button>
-  <button id="getTripBtn">내 출장 조회</button>
-  <div id="tripList"></div>
+  .panel { position:absolute; top:10px; left:10px; width:300px; background:#fff; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.3); z-index:1000; }
+  .panel-header { display:flex; border-bottom:1px solid #ccc; }
+  .panel-header button { flex:1; padding:6px 0; border:none; background:#f5f5f5; cursor:pointer; font-size:14px; }
+  .panel-header button.active { background:#ddd; }
+  .panel-content { padding:8px; display:none; }
+  .panel-content.active { display:block; }
+  input, button { width:100%; margin:4px 0; padding:6px; font-size:14px; box-sizing:border-box; }
+  #myCode { position:absolute; bottom:10px; right:10px; background:rgba(255,255,255,0.8); padding:8px 12px; border-radius:8px; font-size:14px; z-index:1000; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="panel-header">
+    <button id="tabRegister" class="active">등록</button>
+    <button id="tabFilter">조회</button>
+    <button id="tabMyTrips">내 출장</button>
+  </div>
+  <!-- 등록 -->
+  <div class="panel-content active" id="registerContent">
+    <input type="text" id="name" placeholder="이름">
+    <input type="text" id="city" placeholder="도시">
+    <label>시작일: <input type="date" id="startDate"></label>
+    <label>종료일: <input type="date" id="endDate"></label>
+    <button id="submitBtn">등록 / 수정</button>
+  </div>
+  <!-- 조회 -->
+  <div class="panel-content" id="filterContent">
+    <label>조회 시작: <input type="date" id="startDateFilter"></label>
+    <label>조회 종료: <input type="date" id="endDateFilter"></label>
+    <button id="filterBtn">조회</button>
+  </div>
+  <!-- 내 출장 -->
+  <div class="panel-content" id="myTripsContent">내 출장 불러오는 중...</div>
 </div>
 
+<div id="map"></div>
+<div id="myCode"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
 <script>
-const WORKER_URL = 'https://curly-sun-6201.apineluk.workers.dev';
+const WORKER_URL = "https://curly-sun-6201.apineluk.workers.dev/"; // Worker URL
+const today = new Date().toISOString().split('T')[0];
+document.getElementById('startDate').value = today;
+document.getElementById('endDate').value = today;
+document.getElementById('startDateFilter').value = today;
+document.getElementById('endDateFilter').value = today;
+
 let userCode = localStorage.getItem('userCode');
 
-document.getElementById('loginBtn').addEventListener('click', async ()=>{
-  const name = document.getElementById('name').value.trim();
-  const codeInput = document.getElementById('code').value.trim();
-  if(codeInput){
-    const res = await fetch(`${WORKER_URL}?action=login&code=${codeInput}`);
-    const data = await res.json();
-    if(data.success){
-      userCode = codeInput;
-      localStorage.setItem('userCode', userCode);
-      document.getElementById('tripPanel').style.display='block';
-      return;
-    } else alert("등록되지 않은 코드");
-  }
-  const res2 = await fetch(WORKER_URL, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'registerCode', name})
-  });
-  const data2 = await res2.json();
-  if(data2.success){
-    userCode = data2.code;
-    localStorage.setItem('userCode', userCode);
-    alert(`새 코드 발급: ${userCode}`);
-    document.getElementById('tripPanel').style.display='block';
-  }
-});
+// 지도 초기화
+const map = L.map('map', { zoomControl:true }).setView([36.5,127.8],7);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+const markers = L.layerGroup().addTo(map);
+const cityCache = {};
 
-document.getElementById('addTripBtn').addEventListener('click', async ()=>{
-  const city = document.getElementById('city').value;
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
-  const res = await fetch(WORKER_URL, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'addTrip', code:userCode, city, startDate, endDate})
+// === 탭 전환 ===
+const tabs = ["tabRegister", "tabFilter", "tabMyTrips"];
+tabs.forEach(id => document.getElementById(id).addEventListener("click", () => {
+  tabs.forEach(i => {
+    document.getElementById(i).classList.remove("active");
+    document.getElementById(i.replace("tab","") + "Content")?.classList.remove("active");
   });
+  document.getElementById(id).classList.add("active");
+  document.getElementById(id.replace("tab","") + "Content")?.classList.add("active");
+}));
+
+// === 도시 좌표 가져오기 ===
+async function geocode(city){
+  if(cityCache[city]) return cityCache[city];
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city+", South Korea")}`);
   const data = await res.json();
-  alert(data.message);
-});
+  if(data.length>0){
+    cityCache[city] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+    return cityCache[city];
+  }
+  return null;
+}
 
-document.getElementById('getTripBtn').addEventListener('click', async ()=>{
+// === 범위 겹침 확인 ===
+function isRangeOverlap(tripStart, tripEnd, filterStart, filterEnd){
+  const ts=new Date(tripStart), te=new Date(tripEnd), fs=new Date(filterStart), fe=new Date(filterEnd);
+  return te>=fs && ts<=fe;
+}
+
+// === 지도에 표시 ===
+async function loadTrips(filterStart, filterEnd){
+  markers.clearLayers();
   const res = await fetch(`${WORKER_URL}?action=getData&code=${userCode}`);
   const data = await res.json();
-  document.getElementById('tripList').innerHTML = data.map(t=>`
-    <div>${t.city} (${t.startDate} ~ ${t.endDate})</div>
+  const trips = data.filter(t=>t.city && t.startDate && t.endDate)
+                    .filter(t=>isRangeOverlap(t.startDate,t.endDate,filterStart,filterEnd));
+  const cityMap={};
+  trips.forEach(t=>{
+    if(!cityMap[t.city]) cityMap[t.city]=[];
+    cityMap[t.city].push(t.name);
+  });
+  for(const city in cityMap){
+    const coords = await geocode(city);
+    if(coords) L.marker(coords).addTo(markers)
+      .bindPopup(`<b>${city}</b><br>${cityMap[city].join("<br>")}`);
+  }
+}
+
+// === 내 출장 불러오기 ===
+async function loadMyTrips(){
+  const res = await fetch(`${WORKER_URL}?action=getData&code=${userCode}`);
+  const data = await res.json();
+  if(data.length===0){
+    document.getElementById("myTripsContent").innerHTML="등록된 출장 없음";
+    return;
+  }
+  document.getElementById("myTripsContent").innerHTML = data.map(t=>`
+    <div style="border-bottom:1px solid #ccc;padding:4px 0;">
+      <b>${t.city}</b> (${t.startDate}~${t.endDate})<br>
+      <button onclick="editTrip('${t.code}','${t.name}','${t.city}','${t.startDate}','${t.endDate}')">수정</button>
+    </div>
   `).join('');
+}
+
+// === 출장 수정 ===
+async function editTrip(code,name,city,startDate,endDate){
+  const newCity = prompt("도시 수정:", city);
+  if(!newCity) return;
+  const newStart = prompt("시작일 수정:", startDate);
+  const newEnd = prompt("종료일 수정:", endDate);
+  const res = await fetch(WORKER_URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action:"addTrip", code, city:newCity, startDate:newStart, endDate:newEnd})
+  });
+  const result = await res.json();
+  alert(result.message);
+  loadMyTrips();
+  loadTrips(today,today);
+}
+
+// === 등록 / 수정 ===
+document.getElementById('submitBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('name').value.trim();
+  const city = document.getElementById('city').value.trim();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if(!name || !city || !startDate || !endDate){ alert("모든 항목 입력"); return; }
+
+  if(!userCode){ // 새 코드 발급
+    const res = await fetch(WORKER_URL,{
+      method:'POST',
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({action:"registerCode", name})
+    });
+    const data = await res.json();
+    if(data.success){
+      userCode = data.code;
+      localStorage.setItem("userCode", userCode);
+      alert(`새 코드 발급: ${userCode}`);
+    } else { alert("코드 발급 실패"); return; }
+  }
+
+  const res2 = await fetch(WORKER_URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action:"addTrip", code:userCode, city, startDate, endDate})
+  });
+  const data2 = await res2.json();
+  alert(data2.message);
+  loadMyTrips();
+  loadTrips(today,today);
 });
+
+// === 조회 ===
+document.getElementById('filterBtn').addEventListener('click', ()=>{
+  const s=document.getElementById('startDateFilter').value;
+  const e=document.getElementById('endDateFilter').value;
+  loadTrips(s,e);
+});
+
+// 페이지 로드 시 로그인 확인
+if(userCode){
+  document.getElementById('myCode').innerText=`내 코드: ${userCode}`;
+  loadMyTrips();
+  loadTrips(today,today);
+}
 </script>
+</body>
+</html>
