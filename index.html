@@ -5,91 +5,66 @@
 <title>출장 공유 MAP</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <style>
-  html,body{height:100%;margin:0;font-family:Arial;}
-  #map{height:100%;width:100%;}
-  #loginPanel{
-    position:absolute;top:0;left:0;width:100%;height:100%;
-    background:white;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;
-  }
-  #loginPanel input{font-size:18px;padding:10px;margin:10px;width:200px;text-align:center;}
-  #loginPanel button{font-size:18px;padding:10px 20px;cursor:pointer;}
-  #myCode{position:absolute;bottom:10px;right:10px;background:rgba(255,255,255,0.8);padding:10px 15px;border-radius:10px;font-size:14px;display:none;}
-  #showCodeBtn{position:absolute;bottom:50px;right:10px;padding:8px 12px;z-index:1000;}
+html, body { height:100%; margin:0; font-family:Arial; }
+#map { height:100%; width:100%; }
+
+/* 패널 고정 */
+#loginPanel {
+  position:absolute;
+  top:10px; left:10px;
+  width:260px;
+  background:white;
+  padding:15px;
+  border-radius:10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  z-index:1000;
+}
+#loginPanel input, #loginPanel button {
+  width:100%;
+  padding:8px;
+  margin:6px 0;
+  font-size:14px;
+  box-sizing:border-box;
+  text-align:center;
+}
+#myCode {
+  position:absolute;
+  bottom:10px;
+  right:10px;
+  background:rgba(255,255,255,0.8);
+  padding:10px 15px;
+  border-radius:10px;
+  font-size:14px;
+}
 </style>
 </head>
 <body>
 <div id="map"></div>
 
 <div id="loginPanel">
-  <h2>개인 코드 등록/로그인</h2>
+  <h3>새 코드 등록</h3>
   <input type="text" id="userName" placeholder="이름 입력">
   <button id="registerBtn">등록 및 코드 발급</button>
-  <hr>
+
+  <h3>기존 코드 로그인</h3>
   <input type="text" id="loginCode" placeholder="기존 코드 입력">
   <button id="loginBtn">로그인</button>
+
+  <button id="showCodeBtn">내 코드 확인</button>
 </div>
 
 <div id="myCode"></div>
-<button id="showCodeBtn">내 코드 확인</button>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-const SCRIPT_URL = "https://curly-sun-6201.apineluk.workers.dev"; // 여기에 Worker URL 입력
+const SCRIPT_URL = "https://curly-sun-6201.apineluk.workers.dev";
 
-// 초기화: 로컬스토리지에 코드가 있으면 바로 지도 로드
-async function init() {
-  const storedCode = localStorage.getItem('userCode');
-  if(storedCode){
-    document.getElementById('loginPanel').style.display='none';
-    await loadMap(storedCode);
-  }
-}
+// 지도 초기화
+let map = L.map('map').setView([36.5,127.8],7);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// 이름 입력 후 새 코드 발급
-document.getElementById('registerBtn').addEventListener('click', async ()=>{
-  const name = document.getElementById('userName').value.trim();
-  if(!name){ alert("이름을 입력하세요."); return; }
-
-  try{
-    const res = await fetch(`${SCRIPT_URL}?action=registerCode&name=${encodeURIComponent(name)}`);
-    const data = await res.json();
-    if(data.success){
-      localStorage.setItem('userCode', data.code);
-      localStorage.setItem('userName', data.name);
-      alert(`등록 완료!\n코드: ${data.code}\n이름: ${data.name}`);
-      document.getElementById('loginPanel').style.display='none';
-      await loadMap(data.code);
-    } else {
-      alert("등록 실패: 서버 오류");
-    }
-  }catch(e){ alert("등록 오류: "+e.message); }
-});
-
-// 기존 코드 로그인
-document.getElementById('loginBtn').addEventListener('click', async ()=>{
-  const code = document.getElementById('loginCode').value.trim();
-  if(!code){ alert("코드를 입력하세요."); return; }
-
-  try{
-    const res = await fetch(`${SCRIPT_URL}?action=login&code=${code}`);
-    const data = await res.json();
-    if(data.success){
-      localStorage.setItem('userCode', data.code);
-      localStorage.setItem('userName', data.name);
-      document.getElementById('loginPanel').style.display='none';
-      await loadMap(data.code);
-    } else {
-      alert("등록되지 않은 코드입니다.");
-    }
-  }catch(e){ alert("로그인 오류: "+e.message); }
-});
-
-// 지도 표시 및 데이터 로드
+// 지도에 마커 추가
 async function loadMap(code){
-  const map = L.map('map').setView([36.5,127.8],7);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
   try{
     const res = await fetch(`${SCRIPT_URL}?action=getData&code=${code}`);
     const data = await res.json();
@@ -102,23 +77,55 @@ async function loadMap(code){
   }catch(e){ console.error(e); }
 
   const myCodeDiv = document.getElementById('myCode');
-  const userName = localStorage.getItem('userName') || "";
-  myCodeDiv.innerText = `내 코드: ${code} / 이름: ${userName}`;
-  myCodeDiv.style.display='block';
+  myCodeDiv.innerText = `내 코드: ${code}`;
 }
 
-// 내 코드 확인 버튼
-document.getElementById('showCodeBtn').addEventListener('click', ()=>{
-  const code = localStorage.getItem('userCode');
-  const name = localStorage.getItem('userName');
-  if(code && name){
-    alert(`내 코드: ${code}\n이름: ${name}`);
-  } else {
-    alert("코드 없음, 새로 로그인하세요");
-  }
+// 새 코드 등록
+document.getElementById('registerBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('userName').value.trim();
+  if(!name){ alert("이름을 입력하세요"); return; }
+
+  try{
+    const res = await fetch(`${SCRIPT_URL}?action=registerCode&name=${encodeURIComponent(name)}`);
+    const data = await res.json();
+    if(data.success){
+      localStorage.setItem('userCode', data.code);
+      alert(`등록 완료! 개인 코드: ${data.code}\n다른 기기에서도 사용 가능`);
+      await loadMap(data.code);
+    }
+  }catch(e){ alert("코드 등록 오류: "+e.message); }
 });
 
-init();
+// 기존 코드 로그인
+document.getElementById('loginBtn').addEventListener('click', async ()=>{
+  const inputCode = document.getElementById('loginCode').value.trim().toUpperCase();
+  if(!inputCode){ alert("코드를 입력하세요"); return; }
+
+  try{
+    const res = await fetch(`${SCRIPT_URL}?action=login&code=${inputCode}`);
+    const data = await res.json();
+    if(data.success){
+      localStorage.setItem('userCode', inputCode);
+      alert("로그인 성공!");
+      await loadMap(inputCode);
+    } else alert("등록되지 않은 코드입니다.");
+  }catch(e){ alert("로그인 오류: "+e.message); }
+});
+
+// 내 코드 확인
+document.getElementById('showCodeBtn').addEventListener('click', ()=>{
+  const code = localStorage.getItem('userCode');
+  if(code) alert(`내 코드: ${code}`);
+  else alert("코드 없음, 새로 등록하거나 로그인하세요");
+});
+
+// 페이지 로드 시 기존 코드 자동 확인
+window.addEventListener('load', async ()=>{
+  const storedCode = localStorage.getItem('userCode');
+  if(storedCode){
+    await loadMap(storedCode);
+  }
+});
 </script>
 </body>
 </html>
