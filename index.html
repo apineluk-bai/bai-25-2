@@ -2,188 +2,85 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BAI 25-2 MAP</title>
+<title>출장 공유 MAP</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <style>
-  html, body { height: 100%; margin:0; font-family: Arial; }
-  #map { height: 100%; width: 100%; }
-  .panel { position:absolute; top:10px; left:10px; width:300px; background:#fff; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.3); z-index:1000; }
-  .panel-header { display:flex; border-bottom:1px solid #ccc; }
-  .panel-header button { flex:1; padding:6px 0; border:none; background:#f5f5f5; cursor:pointer; font-size:14px; }
-  .panel-header button.active { background:#ddd; }
-  .panel-content { padding:8px; display:none; }
-  .panel-content.active { display:block; }
-  input, button { width:100%; margin:4px 0; padding:6px; font-size:14px; box-sizing:border-box; }
+html,body{height:100%;margin:0;font-family:Arial;} 
+#map{height:100%;width:100%;} 
+#loginPanel{position:absolute;top:0;left:0;width:100%;height:100%;background:white;display:flex;flex-direction:column;align-items:center;justify-content:center;} 
+#loginPanel input{font-size:18px;padding:10px;margin:10px;width:200px;text-align:center;} 
+#loginPanel button{font-size:18px;padding:10px 20px;cursor:pointer;} 
+#myCode{position:absolute;bottom:10px;right:10px;background:rgba(255,255,255,0.8);padding:10px 15px;border-radius:10px;font-size:14px;display:none;}
 </style>
 </head>
 <body>
-<div class="panel">
-  <div class="panel-header">
-    <button id="tabRegister" class="active">등록</button>
-    <button id="tabFilter">조회</button>
-    <button id="tabMyTrips">내 출장</button>
-  </div>
-  <div class="panel-content active" id="registerContent">
-    <input type="text" id="name" placeholder="이름">
-    <input type="text" id="city" placeholder="도시">
-    <label>시작일: <input type="date" id="startDate"></label>
-    <label>종료일: <input type="date" id="endDate"></label>
-    <button id="submitBtn">등록</button>
-  </div>
-  <div class="panel-content" id="filterContent">
-    <label>조회 시작: <input type="date" id="startDateFilter"></label>
-    <label>조회 종료: <input type="date" id="endDateFilter"></label>
-    <button id="filterBtn">조회</button>
-  </div>
-  <div class="panel-content" id="myTripsContent">내 출장 불러오는 중...</div>
-</div>
 <div id="map"></div>
+<div id="loginPanel">
+<h2>개인 코드 로그인</h2>
+<input type="text" id="loginCode" placeholder="코드를 입력하세요">
+<button onclick="loginWithCode()">로그인</button>
+</div>
+<div id="myCode"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script>
-const WORKER_URL = "https://curly-sun-6201.apineluk.workers.dev/";
-const SHEET_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRy2Qr_9Zr-8rBE609BEd3GIj8fgaBclk2j2in0bBcoUeTS0bur0E_SN2Do8WrDYqfBd3xtdV9XvPai/pub?gid=147620371&single=true&output=csv";
+const SCRIPT_URL = "👉Apps_Script_웹앱_URL👈";
 
-const map = L.map('map', { zoomControl:false }).setView([36.5,127.8],7);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-const markers = L.layerGroup().addTo(map);
-const cityCache = {};
-const today = new Date().toISOString().split('T')[0];
-document.getElementById('startDate').value = today;
-document.getElementById('endDate').value = today;
-document.getElementById('startDateFilter').value = today;
-document.getElementById('endDateFilter').value = today;
-
-// === UUID 발급 ===
-let userId = localStorage.getItem("userId");
-if (!userId) {
-  userId = crypto.randomUUID();
-  localStorage.setItem("userId", userId);
-  alert("개인 코드가 생성되었습니다.\n브라우저를 유지하면 자동 로그인됩니다.");
-}
-
-// === 탭 전환 ===
-const tabs = ["tabRegister", "tabFilter", "tabMyTrips"];
-tabs.forEach(id => document.getElementById(id).addEventListener("click", () => {
-  tabs.forEach(i => {
-    document.getElementById(i).classList.remove("active");
-    document.getElementById(i.replace("tab", "") + "Content")?.classList.remove("active");
-  });
-  document.getElementById(id).classList.add("active");
-  document.getElementById(id.replace("tab", "") + "Content")?.classList.add("active");
-}));
-
-async function geocode(city){
-  if(cityCache[city]) return cityCache[city];
-  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city+", South Korea")}`);
-  const data = await res.json();
-  if(data.length>0){ 
-    cityCache[city] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-    return cityCache[city];
+async function init() {
+  const storedCode = localStorage.getItem('userCode');
+  if(storedCode){
+    document.getElementById('loginPanel').style.display='none';
+    await loadMap(storedCode);
+  } else {
+    await registerNewCode();
   }
-  return null;
 }
 
-function isRangeOverlap(tripStart, tripEnd, filterStart, filterEnd){
-  const ts=new Date(tripStart), te=new Date(tripEnd), fs=new Date(filterStart), fe=new Date(filterEnd);
-  return te>=fs && ts<=fe;
+async function registerNewCode(){
+  const res = await fetch(`${SCRIPT_URL}?action=registerCode`);
+  const data = await res.json();
+  if(data.success){
+    localStorage.setItem('userCode', data.code);
+    alert(`당신의 개인코드: ${data.code}\n다른 기기에서도 이 코드를 입력하면 로그인할 수 있습니다.`);
+    document.getElementById('loginPanel').style.display='none';
+    await loadMap(data.code);
+  } else {
+    alert('코드 등록 오류');
+  }
 }
 
-async function loadTrips(filterStart, filterEnd){
-  markers.clearLayers();
-  Papa.parse(SHEET_CSV, {
-    download:true, header:true,
-    complete: async (results)=>{
-      const trips = results.data.filter(r=>r.name && r.city && r.startDate && r.endDate)
-        .filter(t=>isRangeOverlap(t.startDate,t.endDate,filterStart,filterEnd));
-      const cityMap={};
-      trips.forEach(t=>{
-        if(!cityMap[t.city]) cityMap[t.city]=[];
-        cityMap[t.city].push(t.name);
-      });
-      for(const city in cityMap){
-        const coords = await geocode(city);
-        if(coords) L.marker(coords).addTo(markers)
-          .bindPopup(`<b>${city}</b><br>${cityMap[city].join("<br>")}`);
-      }
+async function loginWithCode(){
+  const code = document.getElementById('loginCode').value.trim().toUpperCase();
+  if(!code) return alert('코드를 입력하세요.');
+  const res = await fetch(`${SCRIPT_URL}?action=login&code=${code}`);
+  const data = await res.json();
+  if(data.success){
+    localStorage.setItem('userCode', code);
+    document.getElementById('loginPanel').style.display='none';
+    await loadMap(code);
+  } else alert('등록되지 않은 코드입니다.');
+}
+
+async function loadMap(code){
+  const map = L.map('map').setView([36.5,127.8],7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  
+  const res = await fetch(`${SCRIPT_URL}?action=getData&code=${code}`);
+  const data = await res.json();
+
+  for(const item of data){
+    if(item.lat && item.lng){
+      L.marker([item.lat,item.lng]).addTo(map)
+        .bindPopup(`<b>${item.name}</b><br>${item.city}<br>${item.startDate} ~ ${item.endDate}`);
     }
-  });
+  }
+
+  const myCodeDiv = document.getElementById('myCode');
+  myCodeDiv.innerText = `내 코드: ${code}`;
+  myCodeDiv.style.display='block';
 }
 
-// === 내 출장 불러오기 ===
-async function loadMyTrips(){
-  Papa.parse(SHEET_CSV,{
-    download:true, header:true,
-    complete:(res)=>{
-      const myTrips=res.data.filter(r=>r.userId===userId);
-      if(myTrips.length===0){ 
-        document.getElementById("myTripsContent").innerHTML="등록된 출장 없음";
-        return;
-      }
-      document.getElementById("myTripsContent").innerHTML = myTrips.map(t=>`
-        <div style="border-bottom:1px solid #ccc;padding:4px 0;">
-          <b>${t.city}</b> (${t.startDate}~${t.endDate})<br>
-          <button onclick="editTrip('${t.rowId}','${t.name}','${t.city}','${t.startDate}','${t.endDate}')">수정</button>
-          <button onclick="deleteTrip('${t.rowId}')">삭제</button>
-        </div>
-      `).join('');
-    }
-  });
-}
-
-async function editTrip(rowId,name,city,startDate,endDate){
-  const newCity = prompt("도시 수정:", city);
-  if(!newCity) return;
-  const newStart = prompt("시작일 수정:", startDate);
-  const newEnd = prompt("종료일 수정:", endDate);
-  const res = await fetch(WORKER_URL,{
-    method:"PUT", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({rowId,userId,name,city:newCity,startDate:newStart,endDate:newEnd})
-  });
-  const result=await res.json();
-  alert(result.message);
-  loadMyTrips();
-}
-
-async function deleteTrip(rowId){
-  if(!confirm("정말 삭제하시겠습니까?")) return;
-  const res = await fetch(WORKER_URL,{
-    method:"DELETE", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({rowId,userId})
-  });
-  const result=await res.json();
-  alert(result.message);
-  loadMyTrips();
-}
-
-// === 등록 ===
-document.getElementById('submitBtn').addEventListener('click', async ()=>{
-  const name=document.getElementById('name').value.trim();
-  const city=document.getElementById('city').value.trim();
-  const startDate=document.getElementById('startDate').value;
-  const endDate=document.getElementById('endDate').value;
-  if(!name||!city||!startDate||!endDate){ alert("모든 항목 입력"); return; }
-
-  const res = await fetch(WORKER_URL,{
-    method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({name,city,startDate,endDate,userId})
-  });
-  const result = await res.json();
-  alert(result.message);
-  loadMyTrips();
-});
-
-// === 조회 ===
-document.getElementById('filterBtn').addEventListener('click', ()=>{
-  const s=document.getElementById('startDateFilter').value;
-  const e=document.getElementById('endDateFilter').value;
-  loadTrips(s,e);
-});
-
-loadTrips(today,today);
-loadMyTrips();
+init();
 </script>
 </body>
 </html>
